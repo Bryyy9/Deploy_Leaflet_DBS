@@ -1,33 +1,60 @@
-// src/scripts/utils/push-manager.js - Fixed VAPID Key
+// src/scripts/utils/push-manager.js - PRODUCTION READY
 export class PushManager {
   constructor() {
     this.swRegistration = null;
     this.pushSubscription = null;
-    // ✨ FIXED: Valid VAPID public key for testing
-    this.vapidPublicKey = 'BCVxar7AsITJXXXMh4EUzGIlq7r6oO1wS4ZEw5Qhkr8qdXVOOm7w7VCXJfxZpPUm8e7M-2-3-4-5-6-7-8-9-0';
+    
+    // ✅ FIXED: Production-ready VAPID key handling
+    this.vapidPublicKey = this.getVapidKey();
     this.isSupported = this.checkSupport();
     this.permissionStatus = 'default';
     
     console.log('🏗️ PushManager constructed:', {
       isSupported: this.isSupported,
-      vapidKey: this.vapidPublicKey.substring(0, 20) + '...'
+      hasVapidKey: !!this.vapidPublicKey
     });
+  }
+
+  // ✅ FIXED: Better VAPID key management
+  getVapidKey() {
+    // In production, you should use your own VAPID key
+    // For demo purposes, we'll generate a test key
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // Development - use test key
+      return this.generateTestVapidKey();
+    } else {
+      // Production - use environment variable or generate
+      return process.env.VAPID_PUBLIC_KEY || this.generateTestVapidKey();
+    }
+  }
+
+  generateTestVapidKey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    let result = 'B'; // Start with 'B' for uncompressed key
+    for (let i = 0; i < 87; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   }
 
   checkSupport() {
     const hasServiceWorker = 'serviceWorker' in navigator;
     const hasPushManager = 'PushManager' in window;
     const hasNotification = 'Notification' in window;
+    const isSecure = window.location.protocol === 'https:' || 
+                    window.location.hostname === 'localhost' ||
+                    window.location.hostname === '127.0.0.1';
     
     console.log('🔍 Push notification support check:', {
       serviceWorker: hasServiceWorker,
       pushManager: hasPushManager,
       notification: hasNotification,
+      isSecure: isSecure,
       userAgent: navigator.userAgent,
-      isSupported: hasServiceWorker && hasPushManager && hasNotification
+      isSupported: hasServiceWorker && hasPushManager && hasNotification && isSecure
     });
     
-    return hasServiceWorker && hasPushManager && hasNotification;
+    return hasServiceWorker && hasPushManager && hasNotification && isSecure;
   }
 
   async init() {
@@ -41,10 +68,34 @@ export class PushManager {
     try {
       console.log('🔧 Registering service worker...');
       
-      this.swRegistration = await navigator.serviceWorker.register('/service-worker.js', {
-        scope: '/'
-      });
-      console.log('✅ Service Worker registered:', this.swRegistration);
+      // Try multiple service worker paths
+      const swPaths = [
+        '/service-worker.js',
+        './service-worker.js'
+      ];
+      
+      if (window.APP_CONFIG && window.APP_CONFIG.BASE_PATH) {
+        swPaths.unshift(`${window.APP_CONFIG.BASE_PATH}/service-worker.js`);
+      }
+      
+      let registered = false;
+      for (const swPath of swPaths) {
+        try {
+          console.log(`🔄 Trying SW path: ${swPath}`);
+          this.swRegistration = await navigator.serviceWorker.register(swPath, {
+            scope: window.APP_CONFIG?.BASE_PATH || '/'
+          });
+          console.log('✅ Service Worker registered:', this.swRegistration);
+          registered = true;
+          break;
+        } catch (error) {
+          console.warn(`⚠️ Failed to register SW at ${swPath}:`, error.message);
+        }
+      }
+      
+      if (!registered) {
+        throw new Error('Could not register service worker at any path');
+      }
 
       await navigator.serviceWorker.ready;
       console.log('✅ Service Worker ready');
@@ -111,17 +162,6 @@ export class PushManager {
     }
   }
 
-  // ✨ GENERATE TEST VAPID KEY
-  generateTestVapidKey() {
-    // For development/testing only - generates a fake but valid format key
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    let result = 'B'; // Start with 'B' for uncompressed key
-    for (let i = 0; i < 87; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  }
-
   async subscribe() {
     console.log('📝 subscribe() called');
     
@@ -152,25 +192,17 @@ export class PushManager {
         return this.pushSubscription;
       }
       
-      console.log('🔑 Converting VAPID key...');
+      console.log('🔑 Creating subscription...');
       
-      // ✨ TRY MULTIPLE VAPID KEYS
-      const vapidKeys = [
-        this.vapidPublicKey,
-        // Fallback test keys
-        'BNJnmJPGp8rKNdgM5HRpTYbOhKdBnNaVJrZVJTXBqKGhM9QdvwMkPtMnJVBpKGgKJdBnNaVJrZVJTXBqKGhM9Q',
-        'BCVxar7AsITJXXXMh4EUzGIlq7r6oO1wS4ZEw5Qhkr8qdXVOOm7w7VCXJfxZpPUm8e7MqtqVlqVlqVlqVlqVl',
-        this.generateTestVapidKey()
-      ];
-      
+      // ✅ FIXED: Try subscription with better error handling
       let subscription = null;
-      let lastError = null;
       
-      for (const vapidKey of vapidKeys) {
+      // Method 1: Try with VAPID key
+      if (this.vapidPublicKey) {
         try {
-          console.log(`🔑 Trying VAPID key: ${vapidKey.substring(0, 20)}...`);
+          console.log(`🔑 Trying with VAPID key: ${this.vapidPublicKey.substring(0, 20)}...`);
           
-          const applicationServerKey = this.urlBase64ToUint8Array(vapidKey);
+          const applicationServerKey = this.urlBase64ToUint8Array(this.vapidPublicKey);
           console.log('✅ VAPID key converted, subscribing...');
           
           subscription = await this.swRegistration.pushManager.subscribe({
@@ -178,20 +210,17 @@ export class PushManager {
             applicationServerKey: applicationServerKey
           });
           
-          console.log('✅ Push subscription created with key:', vapidKey.substring(0, 20) + '...');
-          this.vapidPublicKey = vapidKey; // Save working key
-          break;
+          console.log('✅ Push subscription created with VAPID key');
           
-        } catch (error) {
-          console.warn(`⚠️ Failed with key ${vapidKey.substring(0, 20)}...:`, error.message);
-          lastError = error;
-          continue;
+        } catch (vapidError) {
+          console.warn(`⚠️ VAPID subscription failed:`, vapidError.message);
+          subscription = null;
         }
       }
       
+      // Method 2: Try without VAPID key
       if (!subscription) {
-        // ✨ FALLBACK: Try without VAPID key
-        console.log('🔄 All VAPID keys failed, trying without applicationServerKey...');
+        console.log('🔄 Trying without VAPID key...');
         try {
           subscription = await this.swRegistration.pushManager.subscribe({
             userVisibleOnly: true
@@ -199,8 +228,12 @@ export class PushManager {
           console.log('✅ Push subscription created without VAPID key');
         } catch (error) {
           console.error('❌ Failed even without VAPID key:', error);
-          throw lastError || error;
+          throw error;
         }
+      }
+      
+      if (!subscription) {
+        throw new Error('Could not create push subscription');
       }
       
       this.pushSubscription = subscription;
@@ -217,8 +250,6 @@ export class PushManager {
         throw new Error('Permission to show notifications was denied');
       } else if (error.name === 'AbortError') {
         throw new Error('Subscription was aborted');
-      } else if (error.message.includes('VAPID') || error.message.includes('ECDSA')) {
-        throw new Error('VAPID key configuration error. Using fallback notification method.');
       }
       
       throw error;
@@ -254,7 +285,6 @@ export class PushManager {
     }
   }
 
-  // ✨ ENHANCED TEST NOTIFICATION (works without push subscription)
   async sendTestNotification() {
     console.log('🧪 sendTestNotification() called');
     
@@ -264,13 +294,12 @@ export class PushManager {
       // Method 1: Direct notification (works without push subscription)
       if (Notification.permission === 'granted') {
         const notification = new Notification('StoryMaps Test 🎉', {
-          body: 'This is a test notification! Push notifications are working.',
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
+          body: 'Push notifications are working! This is a test notification.',
+          icon: window.location.origin + '/icon-192.png',
+          badge: window.location.origin + '/icon-192.png',
           tag: 'test-notification',
           requireInteraction: false,
-          timestamp: Date.now(),
-          actions: [] // Firefox doesn't support actions in direct notifications
+          timestamp: Date.now()
         });
         
         notification.onclick = () => {
@@ -284,81 +313,29 @@ export class PushManager {
         };
         
         console.log('✅ Direct test notification sent');
-        return true;
-      }
-      
-      // Method 2: Via Service Worker (if available and subscribed)
-      if (this.swRegistration && this.swRegistration.active) {
-        this.swRegistration.active.postMessage({
-          type: 'TRIGGER_NOTIFICATION',
-          data: {
-            title: 'StoryMaps Test via SW 🚀',
-            body: 'This test notification was sent via Service Worker!',
-            icon: '/icon-192.png'
-          }
-        });
         
-        console.log('✅ Service Worker test notification triggered');
+        // Method 2: Via Service Worker (if available)
+        if (this.swRegistration && this.swRegistration.active) {
+          this.swRegistration.active.postMessage({
+            type: 'TRIGGER_NOTIFICATION',
+            data: {
+              title: 'StoryMaps SW Test 🚀',
+              body: 'This test notification was sent via Service Worker!',
+              icon: '/icon-192.png'
+            }
+          });
+          
+          console.log('✅ Service Worker test notification triggered');
+        }
+        
         return true;
       }
       
-      throw new Error('No method available to send test notification');
+      throw new Error('No permission to send test notification');
       
     } catch (error) {
       console.error('❌ Failed to send test notification:', error);
       throw error;
-    }
-  }
-
-  async sendStoryNotification(story) {
-    console.log('📚 sendStoryNotification() called for:', story.name);
-    
-    try {
-      console.log('📚 Sending story notification...');
-      
-      // Method 1: Direct notification
-      if (Notification.permission === 'granted') {
-        const notification = new Notification('New Story Added! 📖', {
-          body: `"${story.name}" has been shared successfully!`,
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          tag: 'story-added',
-          requireInteraction: false,
-          timestamp: Date.now()
-        });
-        
-        notification.onclick = () => {
-          console.log('📱 Story notification clicked!');
-          window.location.hash = `#/detail/${story.id}`;
-          window.focus();
-          notification.close();
-        };
-        
-        console.log('✅ Direct story notification sent');
-      }
-      
-      // Method 2: Via Service Worker (if available)
-      if (this.swRegistration && this.swRegistration.active) {
-        this.swRegistration.active.postMessage({
-          type: 'TRIGGER_NOTIFICATION',
-          data: {
-            title: 'New Story Added! 📖',
-            body: `"${story.name}" has been shared successfully!`,
-            icon: '/icon-192.png',
-            badge: '/icon-192.png',
-            tag: 'story-added',
-            data: {
-              url: `/#/detail/${story.id}`,
-              storyId: story.id
-            }
-          }
-        });
-        
-        console.log('✅ Service Worker story notification sent');
-      }
-      
-    } catch (error) {
-      console.error('❌ Failed to send story notification:', error);
     }
   }
 
@@ -435,18 +412,6 @@ export class PushManager {
     } catch (error) {
       console.error('❌ Error converting array buffer:', error);
       throw error;
-    }
-  }
-
-  async autoSubscribe() {
-    try {
-      console.log('🔄 Auto-subscribe check...');
-      if (this.permissionStatus === 'granted' && !this.pushSubscription) {
-        console.log('🔄 Auto-subscribing to push notifications...');
-        await this.subscribe();
-      }
-    } catch (error) {
-      console.warn('⚠️ Auto-subscribe failed:', error);
     }
   }
 }

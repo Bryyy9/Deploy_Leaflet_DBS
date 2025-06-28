@@ -3445,4 +3445,50 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   outline: none;
   box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.3);
 }
+/* ===== NOTIFICATION TOGGLE BUTTON FIXES ===== */
+.notification-toggle-btn {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 10;
+  min-width: 160px;
+  justify-content: center;
+}
+
+.notification-toggle-btn:not(:disabled) {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+.notification-toggle-btn:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+.notification-toggle-btn .btn-text {
+  margin-left: 0.5rem;
+}
+
+.notification-toggle-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+}
+
+.notification-toggle-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Mobile specific fixes */
+@media (max-width: 768px) {
+  .notification-toggle-btn {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1rem;
+  }
+}
 /* ===== END OF CSS ===== */

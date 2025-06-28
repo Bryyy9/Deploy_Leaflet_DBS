@@ -1,7 +1,8 @@
-// src/scripts/views/settings.js - Perbaikan Event Listener
+// src/scripts/views/settings.js - FIXED VERSION
 export class SettingsView {
   constructor() {
     this.requiresAuth = true;
+    this.eventListeners = new Map(); // Track event listeners
   }
 
   async render() {
@@ -35,7 +36,6 @@ export class SettingsView {
               </div>
             </div>
             <div class="status-actions">
-              <!-- ✨ PERBAIKAN: Container untuk button yang akan di-update -->
               <div id="notificationToggleContainer">
                 <button id="notificationToggle" class="btn btn-secondary btn-sm" disabled>
                   <i class="fas fa-spinner fa-spin"></i>
@@ -138,51 +138,77 @@ export class SettingsView {
     }
   }
 
-  // ✨ PERBAIKAN: Event listener yang lebih robust
+  // ✅ FIXED: Simplified event listeners
   initEventListeners() {
     console.log('🎮 Initializing event listeners...');
     
-    // ✨ PERBAIKAN: Gunakan event delegation untuk tombol dinamis
-    document.addEventListener('click', async (e) => {
-      console.log('🔘 Click detected on:', e.target);
-      
-      // Notification toggle button
-      if (e.target.closest('#notificationToggle') || e.target.closest('[data-action="toggle-notification"]')) {
-        console.log('🔔 Notification toggle clicked');
+    // Clear existing listeners
+    this.clearEventListeners();
+    
+    // Test notification button
+    const testBtn = document.getElementById('testNotification');
+    if (testBtn) {
+      const testHandler = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        await this.handleNotificationToggle();
-        return;
-      }
-      
-      // Test notification button
-      if (e.target.closest('#testNotification')) {
-        console.log('🧪 Test notification clicked');
+        this.handleTestNotification();
+      };
+      testBtn.addEventListener('click', testHandler);
+      this.eventListeners.set('testNotification', { element: testBtn, handler: testHandler });
+    }
+    
+    // Clear cache button
+    const clearBtn = document.getElementById('clearCache');
+    if (clearBtn) {
+      const clearHandler = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        await this.handleTestNotification();
-        return;
-      }
-      
-      // Clear cache button
-      if (e.target.closest('#clearCache')) {
-        console.log('🗑️ Clear cache clicked');
-        e.preventDefault();
-        e.stopPropagation();
-        await this.handleClearCache();
-        return;
-      }
-    });
+        this.handleClearCache();
+      };
+      clearBtn.addEventListener('click', clearHandler);
+      this.eventListeners.set('clearCache', { element: clearBtn, handler: clearHandler });
+    }
     
     console.log('✅ Event listeners initialized');
+  }
+
+  // ✅ FIXED: Attach notification toggle listener after button is created
+  attachNotificationToggleListener() {
+    const toggleBtn = document.getElementById('notificationToggle');
+    
+    if (toggleBtn && !this.eventListeners.has('notificationToggle')) {
+      console.log('🔔 Attaching notification toggle listener...');
+      
+      const toggleHandler = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🔔 Notification toggle clicked!');
+        await this.handleNotificationToggle();
+      };
+      
+      toggleBtn.addEventListener('click', toggleHandler);
+      this.eventListeners.set('notificationToggle', { 
+        element: toggleBtn, 
+        handler: toggleHandler 
+      });
+      
+      console.log('✅ Notification toggle listener attached');
+    }
+  }
+
+  clearEventListeners() {
+    this.eventListeners.forEach((listener, key) => {
+      if (listener.element && listener.handler) {
+        listener.element.removeEventListener('click', listener.handler);
+      }
+    });
+    this.eventListeners.clear();
   }
 
   async loadNotificationStatus() {
     console.log('🔔 Loading notification status...');
     
     const statusEl = document.getElementById('notificationStatus');
-    const toggleContainer = document.getElementById('notificationToggleContainer');
-    const testBtn = document.getElementById('testNotification');
 
     try {
       const { pushManager } = await import('../utils/push-manager.js');
@@ -217,10 +243,12 @@ export class SettingsView {
         statusText = 'You will receive push notifications';
         buttonText = 'Disable Notifications';
         buttonClass = 'btn-danger';
+        
+        const testBtn = document.getElementById('testNotification');
         if (testBtn) testBtn.disabled = false;
       }
       
-      // ✨ PERBAIKAN: Update status container
+      // ✅ FIXED: Update status container with proper structure
       statusEl.className = `notification-status ${statusClass}`;
       statusEl.innerHTML = `
         <div class="status-info">
@@ -235,15 +263,19 @@ export class SettingsView {
         <div class="status-actions">
           <div id="notificationToggleContainer">
             <button id="notificationToggle" 
-                    class="btn ${buttonClass} btn-sm" 
-                    data-action="toggle-notification"
+                    class="btn ${buttonClass} btn-sm notification-toggle-btn"
                     ${buttonDisabled ? 'disabled' : ''}>
               <i class="fas ${statusIcon}"></i>
-              ${buttonText}
+              <span class="btn-text">${buttonText}</span>
             </button>
           </div>
         </div>
       `;
+      
+      // ✅ FIXED: Attach listener after button is created
+      setTimeout(() => {
+        this.attachNotificationToggleListener();
+      }, 100);
       
       console.log('✅ Notification status updated');
       
@@ -263,7 +295,7 @@ export class SettingsView {
           <div id="notificationToggleContainer">
             <button id="notificationToggle" class="btn btn-secondary btn-sm" disabled>
               <i class="fas fa-exclamation-triangle"></i>
-              Error
+              <span class="btn-text">Error</span>
             </button>
           </div>
         </div>
@@ -292,7 +324,7 @@ export class SettingsView {
       console.log('🔄 Starting notification toggle...');
       
       // Show loading state
-      toggleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Please wait...';
+      toggleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span class="btn-text">Please wait...</span>';
       toggleBtn.disabled = true;
       
       const { pushManager } = await import('../utils/push-manager.js');
@@ -323,7 +355,15 @@ export class SettingsView {
       console.error('❌ Error toggling notifications:', error);
       
       const { Alert } = await import('../utils/alert.js');
-      Alert.error('Failed to update notification settings: ' + error.message);
+      
+      let errorMessage = 'Failed to update notification settings';
+      if (error.message.includes('denied')) {
+        errorMessage = 'Permission denied. Please enable notifications in browser settings.';
+      } else if (error.message.includes('not supported')) {
+        errorMessage = 'Push notifications are not supported in this browser.';
+      }
+      
+      Alert.error(errorMessage);
       
       // Restore button
       if (toggleBtn) {
@@ -470,6 +510,12 @@ export class SettingsView {
       cachedStoriesEl.textContent = 'Error loading';
       favoriteStoriesEl.textContent = 'Error loading';
     }
+  }
+
+  // ✅ FIXED: Cleanup method
+  cleanup() {
+    console.log('🧹 Cleaning up SettingsView...');
+    this.clearEventListeners();
   }
 }
 
