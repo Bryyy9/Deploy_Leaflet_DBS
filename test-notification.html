@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Push Notification Test - StoryMaps</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            background: #0a0a0f;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #1a1a2e;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #2d3748;
+        }
+        h1 {
+            color: #00d4ff;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        button { 
+            padding: 12px 24px; 
+            margin: 10px; 
+            font-size: 16px; 
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #00d4ff, #8b5cf6);
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .success { color: #00ff88; }
+        .error { color: #ff006e; }
+        .info { color: #00d4ff; }
+        .warning { color: #ff8500; }
+        #log {
+            background: #16213e;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #2d3748;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 8px;
+            border-bottom: 1px solid #2d3748;
+            border-radius: 4px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        .status-card {
+            background: #16213e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #2d3748;
+        }
+        .status-card h3 {
+            margin-top: 0;
+            color: #00d4ff;
+            font-size: 1.1rem;
+        }
+        .test-section {
+            background: #16213e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #2d3748;
+            margin: 1rem 0;
+        }
+        .test-section h3 {
+            color: #00d4ff;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Enhanced Push Notification Test</h1>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>Browser Support</h3>
+                <div id="supportStatus">Checking...</div>
+            </div>
+            <div class="status-card">
+                <h3>Permission Status</h3>
+                <div id="permissionStatus">Checking...</div>
+            </div>
+            <div class="status-card">
+                <h3>Service Worker</h3>
+                <div id="swStatus">Checking...</div>
+            </div>
+            <div class="status-card">
+                <h3>Push Subscription</h3>
+                <div id="subscriptionStatus">Checking...</div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Basic Tests</h3>
+            <div class="controls">
+                <button onclick="checkSupport()">🔍 Check Support</button>
+                <button onclick="requestPermission()">🔐 Request Permission</button>
+                <button onclick="showSimpleNotification()">📢 Simple Notification</button>
+                <button onclick="registerSW()">⚙️ Register SW</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Advanced Tests</h3>
+            <div class="controls">
+                <button onclick="testPushSubscription()">📝 Test Push Subscription</button>
+                <button onclick="testMultipleVapidKeys()">🔑 Test Multiple VAPID Keys</button>
+                <button onclick="testWithoutVapid()">🚫 Test Without VAPID</button>
+                <button onclick="testAllMethods()">🧪 Test All Methods</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Utilities</h3>
+            <div class="controls">
+                <button onclick="generateVapidKey()">🔐 Generate Test VAPID</button>
+                <button onclick="clearSubscriptions()">🗑️ Clear Subscriptions</button>
+                <button onclick="clearLog()">📄 Clear Log</button>
+                <button onclick="exportLog()">💾 Export Log</button>
+            </div>
+        </div>
+        
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let swRegistration = null;
+        let currentSubscription = null;
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log-entry ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            document.getElementById('log').appendChild(div);
+            console.log(message);
+            
+            const logContainer = document.getElementById('log');
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateStatus() {
+            // Support Status
+            const supportEl = document.getElementById('supportStatus');
+            const hasServiceWorker = 'serviceWorker' in navigator;
+            const hasPushManager = 'PushManager' in window;
+            const hasNotification = 'Notification' in window;
+            const isSupported = hasServiceWorker && hasPushManager && hasNotification;
+            
+            supportEl.innerHTML = `
+                <div class="${isSupported ? 'success' : 'error'}">
+                    ${isSupported ? '✅ Fully Supported' : '❌ Not Supported'}
+                </div>
+                <small>
+                    SW: ${hasServiceWorker ? '✅' : '❌'} | 
+                    Push: ${hasPushManager ? '✅' : '❌'} | 
+                    Notifications: ${hasNotification ? '✅' : '❌'}
+                </small>
+            `;
+            
+            // Permission Status
+            const permissionEl = document.getElementById('permissionStatus');
+            const permission = Notification.permission;
+            let permissionClass = 'info';
+            if (permission === 'granted') permissionClass = 'success';
+            if (permission === 'denied') permissionClass = 'error';
+            
+            permissionEl.innerHTML = `
+                <div class="${permissionClass}">
+                    ${permission === 'granted' ? '✅' : permission === 'denied' ? '❌' : '⏳'} 
+                    ${permission.charAt(0).toUpperCase() + permission.slice(1)}
+                </div>
+            `;
+            
+            // Service Worker Status
+            const swEl = document.getElementById('swStatus');
+            if (swRegistration) {
+                swEl.innerHTML = `
+                    <div class="success">✅ Registered</div>
+                    <small>State: ${swRegistration.active ? 'Active' : 'Installing'}</small>
+                `;
+            } else {
+                swEl.innerHTML = `<div class="warning">⏳ Not Registered</div>`;
+            }
+            
+            // Subscription Status
+            const subEl = document.getElementById('subscriptionStatus');
+            if (currentSubscription) {
+                subEl.innerHTML = `
+                    <div class="success">✅ Subscribed</div>
+                    <small>Endpoint: ${currentSubscription.endpoint.substring(0, 30)}...</small>
+                `;
+            } else {
+                subEl.innerHTML = `<div class="warning">⏳ Not Subscribed</div>`;
+            }
+        }
+
+        function checkSupport() {
+            log('=== CHECKING BROWSER SUPPORT ===', 'info');
+            log('ServiceWorker: ' + ('serviceWorker' in navigator), 'serviceWorker' in navigator ? 'success' : 'error');
+            log('PushManager: ' + ('PushManager' in window), 'PushManager' in window ? 'success' : 'error');
+            log('Notification: ' + ('Notification' in window), 'Notification' in window ? 'success' : 'error');
+            log('Permission: ' + Notification.permission, 'info');
+            log('User Agent: ' + navigator.userAgent.substring(0, 100) + '...', 'info');
+            log('Protocol: ' + window.location.protocol, window.location.protocol === 'https:' ? 'success' : 'warning');
+            
+            updateStatus();
+        }
+
+        async function requestPermission() {
+            try {
+                log('Requesting notification permission...', 'info');
+                const permission = await Notification.requestPermission();
+                log('Permission result: ' + permission, permission === 'granted' ? 'success' : 'error');
+                
+                if (permission === 'granted') {
+                    log('🎉 Permission granted! You can now receive notifications.', 'success');
+                } else if (permission === 'denied') {
+                    log('❌ Permission denied. Please enable notifications in browser settings.', 'error');
+                } else {
+                    log('⏸️ Permission request dismissed.', 'warning');
+                }
+                
+                updateStatus();
+            } catch (error) {
+                log('Permission error: ' + error.message, 'error');
+            }
+        }
+
+        function showSimpleNotification() {
+            if (Notification.permission === 'granted') {
+                try {
+                    const notification = new Notification('StoryMaps Test 🎯', {
+                        body: 'This is a simple test notification!',
+                        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📍</text></svg>',
+                        badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📍</text></svg>',
+                        tag: 'test-notification',
+                        requireInteraction: false,
+                        timestamp: Date.now()
+                    });
+                    
+                    notification.onclick = () => {
+                        log('📱 Notification clicked!', 'success');
+                        notification.close();
+                    };
+                    
+                    notification.onclose = () => {
+                        log('❌ Notification closed', 'info');
+                    };
+                    
+                    notification.onerror = (error) => {
+                        log('❌ Notification error: ' + error, 'error');
+                    };
+                    
+                    log('✅ Simple notification shown!', 'success');
+                } catch (error) {
+                    log('❌ Failed to show notification: ' + error.message, 'error');
+                }
+            } else {
+                log('❌ Permission not granted. Current permission: ' + Notification.permission, 'error');
+            }
+        }
+
+        async function registerSW() {
+            try {
+                log('Registering service worker...', 'info');
+                swRegistration = await navigator.serviceWorker.register('/service-worker.js');
+                log('✅ Service Worker registered successfully', 'success');
+                log('SW Scope: ' + swRegistration.scope, 'info');
+                
+                await navigator.serviceWorker.ready;
+                log('✅ Service Worker ready', 'success');
+                
+                updateStatus();
+            } catch (error) {
+                log('❌ SW registration failed: ' + error.message, 'error');
+            }
+        }
+
+        async function testPushSubscription() {
+            if (!swRegistration) {
+                log('❌ Service Worker not registered. Register SW first.', 'error');
+                return;
+            }
+            
+            if (Notification.permission !== 'granted') {
+                log('❌ Permission not granted. Request permission first.', 'error');
+                return;
+            }
+            
+            try {
+                log('Testing push subscription...', 'info');
+                
+                // Check existing subscription
+                currentSubscription = await swRegistration.pushManager.getSubscription();
+                
+                if (currentSubscription) {
+                    log('✅ Existing subscription found', 'success');
+                } else {
+                    log('📝 Creating new subscription...', 'info');
+                    
+                    // Test VAPID key
+                    const vapidPublicKey = 'BCVxar7AsITJXXXMh4EUzGIlq7r6oO1wS4ZEw5Qhkr8qdXVOOm7w7VCXJfxZpPUm8e7MqtqVlqVlqVlqVlqVl';
+                    
+                    try {
+                        currentSubscription = await swRegistration.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+                        });
+                        
+                        log('✅ Push subscription created with VAPID key!', 'success');
+                    } catch (vapidError) {
+                        log('⚠️ VAPID subscription failed: ' + vapidError.message, 'warning');
+                        log('🔄 Trying without VAPID key...', 'info');
+                        
+                        currentSubscription = await swRegistration.pushManager.subscribe({
+                            userVisibleOnly: true
+                        });
+                        
+                        log('✅ Push subscription created without VAPID key!', 'success');
+                    }
+                }
+                
+                log('Subscription endpoint: ' + currentSubscription.endpoint.substring(0, 50) + '...', 'info');
+                
+                // Test sending notification via SW
+                if (swRegistration.active) {
+                    swRegistration.active.postMessage({
+                        type: 'TRIGGER_NOTIFICATION',
+                        data: {
+                            title: 'Push Test Success! 🎉',
+                            body: 'Your push notification system is working correctly!',
+                            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📍</text></svg>'
+                        }
+                    });
+                    log('✅ Test notification sent via Service Worker', 'success');
+                } else {
+                    log('⚠️ Service Worker not active', 'warning');
+                }
+                
+                updateStatus();
+                
+            } catch (error) {
+                log('❌ Push subscription failed: ' + error.message, 'error');
+            }
+        }
+
+        async function testMultipleVapidKeys() {
+            if (!swRegistration) {
+                log('❌ Service Worker not registered. Register SW first.', 'error');
+                return;
+            }
+            
+            const testKeys = [
+                'BCVxar7AsITJXXXMh4EUzGIlq7r6oO1wS4ZEw5Qhkr8qdXVOOm7w7VCXJfxZpPUm8e7MqtqVlqVlqVlqVlqVl',
+                'BNJnmJPGp8rKNdgM5HRpTYbOhKdBnNaVJrZVJTXBqKGhM9QdvwMkPtMnJVBpKGgKJdBnNaVJrZVJTXBqKGhM9Q',
+                generateTestVapidKey(),
+                generateTestVapidKey()
+            ];
+            
+            log('🔑 Testing multiple VAPID keys...', 'info');
+            
+            for (let i = 0; i < testKeys.length; i++) {
+                const key = testKeys[i];
+                try {
+                    log(`Testing key ${i + 1}: ${key.substring(0, 20)}...`, 'info');
+                    
+                    const subscription = await swRegistration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(key)
+                    });
+                    
+                    log(`✅ Key ${i + 1} worked!`, 'success');
+                    await subscription.unsubscribe();
+                    break;
+                    
+                } catch (error) {
+                    log(`❌ Key ${i + 1} failed: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        async function testWithoutVapid() {
+            if (!swRegistration) {
+                log('❌ Service Worker not registered. Register SW first.', 'error');
+                return;
+            }
+            
+            try {
+                log('🚫 Testing subscription without VAPID key...', 'info');
+                
+                const subscription = await swRegistration.pushManager.subscribe({
+                    userVisibleOnly: true
+                });
+                
+                log('✅ Subscription without VAPID key successful!', 'success');
+                log('Endpoint: ' + subscription.endpoint.substring(0, 50) + '...', 'info');
+                
+                currentSubscription = subscription;
+                updateStatus();
+                
+            } catch (error) {
+                log('❌ Subscription without VAPID failed: ' + error.message, 'error');
+            }
+        }
+
+        async function testAllMethods() {
+            log('🧪 Testing all notification methods...', 'info');
+            
+            try {
+                // 1. Check support
+                checkSupport();
+                
+                // 2. Request permission
+                const permission = await requestPermission();
+                
+                if (permission === 'granted' || Notification.permission === 'granted') {
+                    // 3. Test direct notification
+                    showSimpleNotification();
+                    
+                    // 4. Register SW
+                    await registerSW();
+                    
+                    // 5. Test push subscription
+                    await testPushSubscription();
+                    
+                    log('✅ All tests completed successfully!', 'success');
+                } else {
+                    log('❌ Permission not granted, skipping notification tests', 'error');
+                }
+                
+            } catch (error) {
+                log('❌ Test all failed: ' + error.message, 'error');
+            }
+        }
+
+        function generateTestVapidKey() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+            let result = 'B'; // Start with 'B' for uncompressed key
+            for (let i = 0; i < 87; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        async function clearSubscriptions() {
+            try {
+                if (currentSubscription) {
+                    await currentSubscription.unsubscribe();
+                    currentSubscription = null;
+                    log('✅ Current subscription cleared', 'success');
+                }
+                
+                if (swRegistration) {
+                    const subscription = await swRegistration.pushManager.getSubscription();
+                    if (subscription) {
+                        await subscription.unsubscribe();
+                        log('✅ SW subscription cleared', 'success');
+                    }
+                }
+                
+                localStorage.removeItem('pushSubscription');
+                updateStatus();
+                
+            } catch (error) {
+                log('❌ Error clearing subscriptions: ' + error.message, 'error');
+            }
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/\-/g, '+')
+                .replace(/_/g, '/');
+
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            log('Log cleared', 'info');
+        }
+
+        function exportLog() {
+            const logContent = document.getElementById('log').innerText;
+            const blob = new Blob([logContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `notification-test-log-${new Date().toISOString().slice(0, 19)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            log('📄 Log exported', 'success');
+        }
+
+        // Auto check on load
+        window.onload = () => {
+            checkSupport();
+            
+            // Listen for SW messages
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    log('📨 Message from SW: ' + JSON.stringify(event.data), 'info');
+                });
+            }
+        };
+    </script>
+</body>
+</html>
