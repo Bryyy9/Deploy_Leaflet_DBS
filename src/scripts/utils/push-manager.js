@@ -29,6 +29,7 @@ export class PushManager {
     
     return hasServiceWorker && hasPushManager && hasNotification;
   }
+  
   async init() {
     console.log('🚀 PushManager.init() called');
     
@@ -40,37 +41,18 @@ export class PushManager {
     try {
       console.log('🔧 Registering service worker...');
       
-      // ✅ FIXED: Service Worker paths untuk GitHub Pages
-      const swPaths = [];
-      
-      // Deteksi environment
-      const isGitHubPages = window.location.hostname.includes('github.io');
-      const basePath = window.APP_CONFIG?.BASE_PATH || '';
-      
-      if (isGitHubPages && basePath) {
-        // GitHub Pages dengan base path
-        swPaths.push(`${basePath}/service-worker.js`);
-        swPaths.push(`${window.location.origin}${basePath}/service-worker.js`);
-      }
-      
-      // Fallback paths
-      swPaths.push('/service-worker.js');
-      swPaths.push('./service-worker.js');
-      swPaths.push(`${window.location.origin}/service-worker.js`);
-      
-      console.log('🔍 Trying SW paths:', swPaths);
+      // ✅ FIXED: Use same config as sw-register
+      const { swPaths, scope } = this.getServiceWorkerConfig();
+      console.log('🔍 PushManager SW Config:', { swPaths, scope });
       
       let registered = false;
       for (const swPath of swPaths) {
         try {
-          console.log(`🔄 Trying SW path: ${swPath}`);
-          
-          // ✅ FIXED: Gunakan scope yang benar
-          const scope = basePath || '/';
+          console.log(`🔄 Trying SW path: ${swPath} with scope: ${scope}`);
           
           this.swRegistration = await navigator.serviceWorker.register(swPath, {
             scope: scope,
-            updateViaCache: 'none' // ✅ TAMBAH: Hindari cache issues
+            updateViaCache: 'none'
           });
           
           console.log('✅ Service Worker registered:', this.swRegistration);
@@ -87,7 +69,6 @@ export class PushManager {
         throw new Error('Could not register service worker at any path');
       }
 
-      // ✅ TAMBAH: Wait for SW to be ready
       await navigator.serviceWorker.ready;
       console.log('✅ Service Worker ready');
       
@@ -108,6 +89,27 @@ export class PushManager {
       console.error('❌ Failed to initialize push notifications:', error);
       return false;
     }
+  }
+
+  // ✅ ADD: Same config method as sw-register
+  getServiceWorkerConfig() {
+    const basePath = window.APP_CONFIG?.BASE_PATH || '';
+    const isGitHubPages = window.location.hostname.includes('github.io');
+    
+    const swPaths = [];
+    
+    if (isGitHubPages && basePath) {
+      swPaths.push(`${basePath}/service-worker.js`);
+      swPaths.push(`./service-worker.js`);
+    }
+    
+    swPaths.push('/service-worker.js');
+    swPaths.push('./service-worker.js');
+    
+    // ✅ FIXED: Scope sesuai dengan base path
+    const scope = basePath ? `${basePath}/` : '/';
+    
+    return { swPaths, scope };
   }
   async requestPermission() {
     console.log('🔐 requestPermission() called');

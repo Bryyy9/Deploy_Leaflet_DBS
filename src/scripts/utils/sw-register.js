@@ -1,4 +1,4 @@
-// src/scripts/utils/sw-register.js - COMPLETE REWRITE
+// src/scripts/utils/sw-register.js - FIXED SCOPE ISSUE
 export async function registerSW() {
   if (!('serviceWorker' in navigator)) {
     console.log('⚠️ Service Worker not supported');
@@ -8,9 +8,9 @@ export async function registerSW() {
   try {
     console.log('🔧 Registering Service Worker...');
     
-    // ✅ FIXED: Comprehensive path detection
-    const swPaths = getServiceWorkerPaths();
-    console.log('🔍 Trying SW paths:', swPaths);
+    // ✅ FIXED: Get correct paths and scopes
+    const { swPaths, scope } = getServiceWorkerConfig();
+    console.log('🔍 SW Config:', { swPaths, scope });
     
     let registration = null;
     let lastError = null;
@@ -18,9 +18,9 @@ export async function registerSW() {
     // Test each path
     for (const swPath of swPaths) {
       try {
-        console.log(`🔄 Testing SW path: ${swPath}`);
+        console.log(`🔄 Testing SW path: ${swPath} with scope: ${scope}`);
         
-        // ✅ STEP 1: Check if file exists
+        // ✅ Check if file exists
         const fileExists = await checkFileExists(swPath);
         if (!fileExists) {
           console.warn(`⚠️ File not found: ${swPath}`);
@@ -29,10 +29,7 @@ export async function registerSW() {
         
         console.log(`✅ File exists: ${swPath}`);
         
-        // ✅ STEP 2: Try to register
-        const scope = getServiceWorkerScope();
-        console.log(`📍 Using scope: ${scope}`);
-        
+        // ✅ FIXED: Use correct scope
         registration = await navigator.serviceWorker.register(swPath, {
           scope: scope,
           updateViaCache: 'none'
@@ -85,15 +82,12 @@ export async function registerSW() {
   }
 }
 
-// ✅ NEW: Get all possible SW paths
-function getServiceWorkerPaths() {
-  const paths = [];
-  
-  // Get base path from global config
+// ✅ NEW: Get SW configuration with correct scope
+function getServiceWorkerConfig() {
   const basePath = window.APP_CONFIG?.BASE_PATH || '';
   const isGitHubPages = window.location.hostname.includes('github.io');
   
-  console.log('🌐 Path detection:', {
+  console.log('🌐 SW Config detection:', {
     basePath,
     isGitHubPages,
     hostname: window.location.hostname,
@@ -101,35 +95,29 @@ function getServiceWorkerPaths() {
     origin: window.location.origin
   });
   
+  // ✅ FIXED: Service Worker paths
+  const swPaths = [];
+  
   if (isGitHubPages && basePath) {
-    // GitHub Pages with base path
-    paths.push(`${basePath}/service-worker.js`);
-    paths.push(`${window.location.origin}${basePath}/service-worker.js`);
+    // GitHub Pages - SW harus relative ke base path
+    swPaths.push(`${basePath}/service-worker.js`);
+    swPaths.push(`./service-worker.js`); // Relative ke current path
   }
   
-  // Standard paths
-  paths.push('/service-worker.js');
-  paths.push('./service-worker.js');
-  paths.push(`${window.location.origin}/service-worker.js`);
+  // Fallback paths
+  swPaths.push('/service-worker.js');
+  swPaths.push('./service-worker.js');
   
-  // Relative to current path
-  const currentPath = window.location.pathname;
-  if (currentPath !== '/') {
-    paths.push(`${currentPath}service-worker.js`);
-    paths.push(`${currentPath}/service-worker.js`);
-  }
+  // ✅ FIXED: Scope harus sesuai dengan lokasi SW
+  // Jika SW di /Deploy_Leaflet_DBS/service-worker.js, scope maksimal /Deploy_Leaflet_DBS/
+  const scope = basePath ? `${basePath}/` : '/';
   
-  // Remove duplicates
-  return [...new Set(paths)];
+  console.log('📍 Final SW config:', { swPaths, scope });
+  
+  return { swPaths, scope };
 }
 
-// ✅ NEW: Get SW scope
-function getServiceWorkerScope() {
-  const basePath = window.APP_CONFIG?.BASE_PATH || '';
-  return basePath || '/';
-}
-
-// ✅ NEW: Check if file exists
+// ✅ Keep existing helper functions
 async function checkFileExists(url) {
   try {
     const response = await fetch(url, { 
@@ -150,7 +138,6 @@ async function initializePushNotifications() {
   try {
     console.log('🔔 Initializing push notifications...');
     
-    // ✅ Dynamic import to avoid circular dependencies
     const { pushManager } = await import('./push-manager.js');
     
     const initialized = await pushManager.init();
@@ -158,10 +145,8 @@ async function initializePushNotifications() {
     if (initialized) {
       console.log('✅ Push notifications initialized');
       
-      // Auto-subscribe if permission granted
       await pushManager.autoSubscribe();
       
-      // Show notification permission banner
       try {
         const { notificationPermission } = await import('../components/notification-permission.js');
         notificationPermission.autoShow();
@@ -196,13 +181,6 @@ function showUpdateAvailable(registration) {
         window.location.reload();
       }
     });
-  } else {
-    if (confirm('A new version is available. Update now?')) {
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-      window.location.reload();
-    }
   }
 }
 
@@ -234,7 +212,6 @@ export function sendSWMessage(message) {
   }
 }
 
-// Auto-check for updates every hour
 if (typeof window !== 'undefined') {
   setInterval(checkForSWUpdates, 60 * 60 * 1000);
 }
