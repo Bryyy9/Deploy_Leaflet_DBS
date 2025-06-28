@@ -1,4 +1,4 @@
-# .github/workflows/deploy.yml - Fixed Permission Issues
+# .github/workflows/deploy.yml - UPDATE
 name: Deploy to GitHub Pages
 
 on:
@@ -42,12 +42,26 @@ jobs:
         GITHUB_PAGES: true
         GITHUB_REPOSITORY: ${{ github.repository }}
         
-    # # ✅ FIXED: Create .nojekyll without touch command
-    # - name: Create .nojekyll file
-    #   run: touch "" > ./dist/.nojekyll
+    # ✅ TAMBAH: Verifikasi service worker
+    - name: Verify service worker
+      run: |
+        echo "🔍 Checking if service-worker.js exists..."
+        if [ -f "./dist/service-worker.js" ]; then
+          echo "✅ service-worker.js found"
+          head -5 ./dist/service-worker.js
+        else
+          echo "❌ service-worker.js NOT found"
+          echo "📁 Contents of dist:"
+          ls -la ./dist/
+          exit 1
+        fi
       
     - name: List dist contents
-      run: ls -la ./dist/
+      run: |
+        echo "📁 Final dist contents:"
+        ls -la ./dist/
+        echo "📁 Service Worker check:"
+        ls -la ./dist/service-worker.js || echo "❌ service-worker.js missing"
       
     - name: Setup Pages
       uses: actions/configure-pages@v4

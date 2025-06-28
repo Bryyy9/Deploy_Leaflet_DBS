@@ -2,26 +2,25 @@
 const detectBasePath = () => {
   const pathname = self.location.pathname;
   console.log('🌐 SW pathname:', pathname);
+  console.log('🌐 SW hostname:', self.location.hostname);
+  console.log('🌐 SW origin:', self.location.origin);
   
-  // Detect GitHub Pages pattern
-  if (pathname.includes('/') && pathname !== '/') {
-    const parts = pathname.split('/');
-    if (parts.length > 1 && parts[1] && !parts[1].endsWith('.js')) {
-      const basePath = `/${parts[1]}`;
-      console.log('🌐 SW detected base path:', basePath);
+  // ✅ FIXED: Deteksi GitHub Pages dengan benar
+  if (self.location.hostname.includes('github.io')) {
+    const pathParts = pathname.split('/').filter(part => part.length > 0);
+    console.log('🌐 SW path parts:', pathParts);
+    
+    // Jika ada path parts dan bukan file service worker
+    if (pathParts.length > 0 && !pathParts[pathParts.length - 1].endsWith('.js')) {
+      const basePath = `/${pathParts[0]}`;
+      console.log('🌐 SW detected GitHub Pages base path:', basePath);
       return basePath;
     }
-  }
-  
-  // Fallback: check if we're on GitHub Pages
-  if (self.location.hostname.includes('github.io')) {
-    const hostParts = self.location.hostname.split('.');
-    if (hostParts[0] !== 'github') {
-      // User pages, might have repo name in path
-      const pathParts = self.location.pathname.split('/');
-      if (pathParts[1] && pathParts[1] !== 'service-worker.js') {
-        return `/${pathParts[1]}`;
-      }
+    
+    // Jika service worker di root tapi masih GitHub Pages
+    if (pathParts.length === 1 && pathParts[0] === 'service-worker.js') {
+      // Cek dari referrer atau document URL
+      return ''; // Root level
     }
   }
   
@@ -29,7 +28,7 @@ const detectBasePath = () => {
 };
 
 const BASE_PATH = detectBasePath();
-const CACHE_NAME = 'storymaps-v1.0.4';
+const CACHE_NAME = 'storymaps-v1.0.5'; // ✅ UPDATE version
 
 console.log('🎯 Service Worker starting with config:', {
   basePath: BASE_PATH,
@@ -39,10 +38,12 @@ console.log('🎯 Service Worker starting with config:', {
   pathname: self.location.pathname
 });
 
+// ✅ TAMBAH: URLs dengan base path yang benar
 const urlsToCache = [
   `${BASE_PATH}/`,
   `${BASE_PATH}/index.html`,
   `${BASE_PATH}/manifest.json`,
+  // External resources (tidak perlu base path)
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',

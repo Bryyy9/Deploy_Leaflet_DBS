@@ -1,0 +1,53 @@
+<!-- test-sw.html - TAMBAH file baru di root -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SW Test</title>
+</head>
+<body>
+    <h1>Service Worker Test</h1>
+    <div id="status"></div>
+    <button onclick="testSW()">Test SW Registration</button>
+    
+    <script>
+        async function testSW() {
+            const statusEl = document.getElementById('status');
+            
+            try {
+                statusEl.innerHTML = 'Testing...';
+                
+                // Test paths
+                const paths = [
+                    '/Deploy_Leaflet_DBS/service-worker.js',
+                    '/service-worker.js',
+                    './service-worker.js'
+                ];
+                
+                for (const path of paths) {
+                    try {
+                        console.log('Testing:', path);
+                        const response = await fetch(path);
+                        console.log('Response:', response.status);
+                        
+                        if (response.ok) {
+                            statusEl.innerHTML += `<p>✅ ${path} - OK (${response.status})</p>`;
+                            
+                            // Try to register
+                            const registration = await navigator.serviceWorker.register(path);
+                            statusEl.innerHTML += `<p>✅ Registered: ${registration.scope}</p>`;
+                            break;
+                        } else {
+                            statusEl.innerHTML += `<p>❌ ${path} - ${response.status}</p>`;
+                        }
+                    } catch (error) {
+                        statusEl.innerHTML += `<p>❌ ${path} - ${error.message}</p>`;
+                    }
+                }
+                
+            } catch (error) {
+                statusEl.innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

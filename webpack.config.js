@@ -1,4 +1,4 @@
-// webpack.config.js - Fixed Environment Variables
+// webpack.config.js - UPDATE
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
@@ -6,12 +6,9 @@ const { DefinePlugin } = require('webpack');
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
-  
-  // ✨ GitHub Pages configuration
   const isGitHubPages = process.env.GITHUB_PAGES === 'true' || 
                        process.env.GITHUB_ACTIONS === 'true';
   
-  // Get repository name from environment
   const getPublicPath = () => {
     if (isGitHubPages && process.env.GITHUB_REPOSITORY) {
       const repoName = process.env.GITHUB_REPOSITORY.split('/')[1];
@@ -53,19 +50,11 @@ module.exports = (env, argv) => {
           generator: {
             filename: 'assets/images/[name].[hash][ext]'
           }
-        },
-        {
-          test: /\.(woff|woff2|eot|ttf|otf)$/i,
-          type: 'asset/resource',
-          generator: {
-            filename: 'assets/fonts/[name].[hash][ext]'
-          }
         }
       ]
     },
     
     plugins: [
-      // ✅ FIXED: Define global variables with proper fallbacks
       new DefinePlugin({
         __BASE_PATH__: JSON.stringify(basePath),
         __IS_PRODUCTION__: JSON.stringify(isProduction),
@@ -73,9 +62,7 @@ module.exports = (env, argv) => {
         __PUBLIC_PATH__: JSON.stringify(publicPath),
         __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
         __VERSION__: JSON.stringify('1.0.0'),
-        // ✅ FIXED: Add process.env fallback for browser
-        'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
-        'process.env.VAPID_PUBLIC_KEY': JSON.stringify(process.env.VAPID_PUBLIC_KEY || null)
+        'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development')
       }),
       
       new HtmlWebpackPlugin({
@@ -96,12 +83,19 @@ module.exports = (env, argv) => {
         } : false
       }),
       
+      // ✅ FIXED: Pastikan service worker di-copy dengan benar
       new CopyWebpackPlugin({
         patterns: [
           { 
             from: './src/public', 
             to: './',
             noErrorOnMissing: true
+          },
+          // ✅ TAMBAH: Copy service worker eksplisit
+          {
+            from: './src/public/service-worker.js',
+            to: 'service-worker.js',
+            noErrorOnMissing: false
           },
           {
             from: './test-notification.html',
@@ -117,17 +111,8 @@ module.exports = (env, argv) => {
       })
     ],
     
-    // ✅ FIXED: Add resolve fallbacks for Node.js modules
     resolve: {
       extensions: ['.js', '.json'],
-      alias: {
-        '@': path.resolve(__dirname, 'src'),
-        '@scripts': path.resolve(__dirname, 'src/scripts'),
-        '@presenters': path.resolve(__dirname, 'src/scripts/presenters'),
-        '@views': path.resolve(__dirname, 'src/scripts/views'),
-        '@data': path.resolve(__dirname, 'src/scripts/data'),
-        '@utils': path.resolve(__dirname, 'src/scripts/utils')
-      },
       fallback: {
         "process": false,
         "buffer": false,
@@ -148,8 +133,10 @@ module.exports = (env, argv) => {
         directory: path.join(__dirname, 'dist'),
       },
       compress: true,
+      // ✅ TAMBAH: Headers untuk Service Worker
       headers: {
-        'Service-Worker-Allowed': '/'
+        'Service-Worker-Allowed': '/',
+        'Access-Control-Allow-Origin': '*'
       }
     },
     
@@ -168,7 +155,6 @@ module.exports = (env, argv) => {
     },
     
     devtool: isProduction ? 'source-map' : 'eval-source-map',
-    
     mode: isProduction ? 'production' : 'development'
   };
 };
