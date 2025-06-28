@@ -1,0 +1,449 @@
+<!-- src/public/debug-notifications.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Notification Debug - StoryMaps</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            background: #0a0a0f;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #1a1a2e;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #2d3748;
+        }
+        h1 { color: #00d4ff; text-align: center; margin-bottom: 2rem; }
+        button { 
+            padding: 12px 24px; 
+            margin: 10px; 
+            font-size: 16px; 
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #00d4ff, #8b5cf6);
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+        button:hover { transform: translateY(-2px); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .success { color: #00ff88; }
+        .error { color: #ff006e; }
+        .info { color: #00d4ff; }
+        .warning { color: #ff8500; }
+        #log {
+            background: #16213e;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #2d3748;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 8px;
+            border-bottom: 1px solid #2d3748;
+            border-radius: 4px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        .status-card {
+            background: #16213e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #2d3748;
+        }
+        .status-card h3 {
+            margin-top: 0;
+            color: #00d4ff;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Push Notification Debug Tool</h1>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>Environment Info</h3>
+                <div id="envInfo">Loading...</div>
+            </div>
+            <div class="status-card">
+                <h3>Browser Support</h3>
+                <div id="supportStatus">Checking...</div>
+            </div>
+            <div class="status-card">
+                <h3>Permission Status</h3>
+                <div id="permissionStatus">Checking...</div>
+            </div>
+            <div class="status-card">
+                <h3>Service Worker</h3>
+                <div id="swStatus">Checking...</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button onclick="checkEnvironment()">🌐 Check Environment</button>
+            <button onclick="checkSupport()">🔍 Check Support</button>
+            <button onclick="requestPermission()">🔐 Request Permission</button>
+            <button onclick="registerSW()">⚙️ Register SW</button>
+            <button onclick="testSubscription()">📝 Test Subscription</button>
+            <button onclick="testDirectNotification()">📢 Direct Notification</button>
+            <button onclick="testSWNotification()">🔧 SW Notification</button>
+            <button onclick="clearLog()">📄 Clear Log</button>
+        </div>
+        
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let swRegistration = null;
+        let currentSubscription = null;
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log-entry ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            document.getElementById('log').appendChild(div);
+            console.log(message);
+            
+            const logContainer = document.getElementById('log');
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function checkEnvironment() {
+            log('=== ENVIRONMENT CHECK ===', 'info');
+            
+            const envInfo = {
+                'URL': window.location.href,
+                'Origin': window.location.origin,
+                'Protocol': window.location.protocol,
+                'Host': window.location.host,
+                'Pathname': window.location.pathname,
+                'User Agent': navigator.userAgent.substring(0, 100) + '...',
+                'Is HTTPS': window.location.protocol === 'https:',
+                'Is Localhost': window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
+                'Is GitHub Pages': window.location.hostname.includes('github.io'),
+                'Base Path': window.BASE_PATH || 'Not set'
+            };
+            
+            Object.entries(envInfo).forEach(([key, value]) => {
+                const status = key === 'Is HTTPS' ? (value ? 'success' : 'error') : 'info';
+                log(`${key}: ${value}`, status);
+            });
+            
+            document.getElementById('envInfo').innerHTML = Object.entries(envInfo)
+                .map(([key, value]) => `<div><strong>${key}:</strong> ${value}</div>`)
+                .join('');
+            
+            // Check if HTTPS is required
+            if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost')) {
+                log('❌ HTTPS is required for push notifications in production!', 'error');
+            }
+        }
+
+        function checkSupport() {
+            log('=== BROWSER SUPPORT CHECK ===', 'info');
+            
+            const support = {
+                'ServiceWorker': 'serviceWorker' in navigator,
+                'PushManager': 'PushManager' in window,
+                'Notification': 'Notification' in window,
+                'showNotification': 'showNotification' in ServiceWorkerRegistration.prototype,
+                'PushSubscription': 'PushSubscription' in window
+            };
+            
+            Object.entries(support).forEach(([feature, supported]) => {
+                log(`${feature}: ${supported ? '✅ Supported' : '❌ Not Supported'}`, supported ? 'success' : 'error');
+            });
+            
+            const isFullySupported = Object.values(support).every(Boolean);
+            log(`Overall Support: ${isFullySupported ? '✅ Full Support' : '❌ Limited Support'}`, isFullySupported ? 'success' : 'error');
+            
+            document.getElementById('supportStatus').innerHTML = Object.entries(support)
+                .map(([feature, supported]) => 
+                    `<div class="${supported ? 'success' : 'error'}">${feature}: ${supported ? '✅' : '❌'}</div>`
+                ).join('');
+        }
+
+        async function requestPermission() {
+            try {
+                log('🔐 Requesting notification permission...', 'info');
+                
+                if (!('Notification' in window)) {
+                    throw new Error('Notifications not supported');
+                }
+                
+                const permission = await Notification.requestPermission();
+                log(`Permission result: ${permission}`, permission === 'granted' ? 'success' : 'error');
+                
+                document.getElementById('permissionStatus').innerHTML = 
+                    `<div class="${permission === 'granted' ? 'success' : 'error'}">${permission}</div>`;
+                
+                if (permission === 'granted') {
+                    log('🎉 Permission granted! You can now receive notifications.', 'success');
+                } else if (permission === 'denied') {
+                    log('❌ Permission denied. Please enable notifications in browser settings.', 'error');
+                } else {
+                    log('⏸️ Permission request dismissed.', 'warning');
+                }
+                
+            } catch (error) {
+                log('❌ Permission error: ' + error.message, 'error');
+            }
+        }
+
+        async function registerSW() {
+            try {
+                log('⚙️ Registering service worker...', 'info');
+                
+                if (!('serviceWorker' in navigator)) {
+                    throw new Error('Service Workers not supported');
+                }
+                
+                // Try different SW paths
+                const swPaths = [
+                    '/service-worker.js',
+                    './service-worker.js',
+                    window.BASE_PATH ? `${window.BASE_PATH}/service-worker.js` : '/service-worker.js'
+                ];
+                
+                let registered = false;
+                for (const swPath of swPaths) {
+                    try {
+                        log(`Trying SW path: ${swPath}`, 'info');
+                        swRegistration = await navigator.serviceWorker.register(swPath);
+                        log(`✅ Service Worker registered at: ${swPath}`, 'success');
+                        registered = true;
+                        break;
+                    } catch (pathError) {
+                        log(`❌ Failed to register SW at ${swPath}: ${pathError.message}`, 'warning');
+                    }
+                }
+                
+                if (!registered) {
+                    throw new Error('Could not register service worker at any path');
+                }
+                
+                log('SW Scope: ' + swRegistration.scope, 'info');
+                
+                await navigator.serviceWorker.ready;
+                log('✅ Service Worker ready', 'success');
+                
+                document.getElementById('swStatus').innerHTML = 
+                    `<div class="success">✅ Registered</div><small>Scope: ${swRegistration.scope}</small>`;
+                
+            } catch (error) {
+                log('❌ SW registration failed: ' + error.message, 'error');
+                document.getElementById('swStatus').innerHTML = 
+                    `<div class="error">❌ Failed</div><small>${error.message}</small>`;
+            }
+        }
+
+        async function testSubscription() {
+            if (!swRegistration) {
+                log('❌ Service Worker not registered. Register SW first.', 'error');
+                return;
+            }
+            
+            if (Notification.permission !== 'granted') {
+                log('❌ Permission not granted. Request permission first.', 'error');
+                return;
+            }
+            
+            try {
+                log('📝 Testing push subscription...', 'info');
+                
+                // Check existing subscription
+                currentSubscription = await swRegistration.pushManager.getSubscription();
+                
+                if (currentSubscription) {
+                    log('✅ Existing subscription found', 'success');
+                    log('Endpoint: ' + currentSubscription.endpoint.substring(0, 50) + '...', 'info');
+                } else {
+                    log('📝 Creating new subscription...', 'info');
+                    
+                    // Test multiple VAPID keys
+                    const testKeys = [
+                        'BCVxar7AsITJXXXMh4EUzGIlq7r6oO1wS4ZEw5Qhkr8qdXVOOm7w7VCXJfxZpPUm8e7MqtqVlqVlqVlqVlqVl',
+                        'BNJnmJPGp8rKNdgM5HRpTYbOhKdBnNaVJrZVJTXBqKGhM9QdvwMkPtMnJVBpKGgKJdBnNaVJrZVJTXBqKGhM9Q',
+                        generateTestVapidKey()
+                    ];
+                    
+                    let subscribed = false;
+                    
+                    // Try with VAPID keys
+                    for (const key of testKeys) {
+                        try {
+                            log(`Trying VAPID key: ${key.substring(0, 20)}...`, 'info');
+                            currentSubscription = await swRegistration.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: urlBase64ToUint8Array(key)
+                            });
+                            log('✅ Subscription created with VAPID key!', 'success');
+                            subscribed = true;
+                            break;
+                        } catch (vapidError) {
+                            log(`❌ VAPID key failed: ${vapidError.message}`, 'warning');
+                        }
+                    }
+                    
+                    // Try without VAPID key
+                    if (!subscribed) {
+                        try {
+                            log('🔄 Trying without VAPID key...', 'info');
+                            currentSubscription = await swRegistration.pushManager.subscribe({
+                                userVisibleOnly: true
+                            });
+                            log('✅ Subscription created without VAPID key!', 'success');
+                            subscribed = true;
+                        } catch (noVapidError) {
+                            log(`❌ No VAPID subscription failed: ${noVapidError.message}`, 'error');
+                        }
+                    }
+                    
+                    if (!subscribed) {
+                        throw new Error('Could not create push subscription with any method');
+                    }
+                }
+                
+                log('Subscription endpoint: ' + currentSubscription.endpoint.substring(0, 50) + '...', 'info');
+                log('✅ Push subscription test completed successfully!', 'success');
+                
+            } catch (error) {
+                log('❌ Push subscription failed: ' + error.message, 'error');
+            }
+        }
+
+        function testDirectNotification() {
+            if (Notification.permission !== 'granted') {
+                log('❌ Permission not granted for direct notifications', 'error');
+                return;
+            }
+            
+            try {
+                log('📢 Testing direct notification...', 'info');
+                
+                const notification = new Notification('Direct Test 🎯', {
+                    body: 'This is a direct notification test!',
+                    icon: '/icon-192.png',
+                    badge: '/icon-192.png',
+                    tag: 'direct-test',
+                    requireInteraction: false,
+                    timestamp: Date.now()
+                });
+                
+                notification.onclick = () => {
+                    log('📱 Direct notification clicked!', 'success');
+                    notification.close();
+                };
+                
+                notification.onclose = () => {
+                    log('❌ Direct notification closed', 'info');
+                };
+                
+                notification.onerror = (error) => {
+                    log('❌ Direct notification error: ' + error, 'error');
+                };
+                
+                log('✅ Direct notification sent!', 'success');
+                
+            } catch (error) {
+                log('❌ Direct notification failed: ' + error.message, 'error');
+            }
+        }
+
+        function testSWNotification() {
+            if (!swRegistration || !swRegistration.active) {
+                log('❌ Service Worker not active', 'error');
+                return;
+            }
+            
+            try {
+                log('🔧 Testing SW notification...', 'info');
+                
+                swRegistration.active.postMessage({
+                    type: 'TRIGGER_NOTIFICATION',
+                    data: {
+                        title: 'SW Test Success! 🚀',
+                        body: 'This notification was sent via Service Worker!',
+                        icon: '/icon-192.png',
+                        tag: 'sw-test'
+                    }
+                });
+                
+                log('✅ SW notification message sent!', 'success');
+                
+            } catch (error) {
+                log('❌ SW notification failed: ' + error.message, 'error');
+            }
+        }
+
+        function generateTestVapidKey() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+            let result = 'B';
+            for (let i = 0; i < 87; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/\-/g, '+')
+                .replace(/_/g, '/');
+
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            log('Log cleared', 'info');
+        }
+
+        // Auto check on load
+        window.onload = () => {
+            checkEnvironment();
+            checkSupport();
+            
+            // Listen for SW messages
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    log('📨 Message from SW: ' + JSON.stringify(event.data), 'info');
+                });
+            }
+        };
+    </script>
+</body>
+</html>

@@ -1,19 +1,28 @@
-// src/public/service-worker.js - Dynamic Base Path
+// src/public/service-worker.js - Enhanced with debugging
 const getBasePath = () => {
   const pathname = self.location.pathname;
+  console.log('🌐 SW pathname:', pathname);
+  
   if (pathname.includes('/')) {
     const parts = pathname.split('/');
-    if (parts.length > 1 && parts[1]) {
-      return `/${parts[1]}`;
+    if (parts.length > 1 && parts[1] && parts[1] !== 'service-worker.js') {
+      const basePath = `/${parts[1]}`;
+      console.log('🌐 SW detected base path:', basePath);
+      return basePath;
     }
   }
   return '';
 };
 
 const BASE_PATH = getBasePath();
-const CACHE_NAME = 'storymaps-v1.0.2';
+const CACHE_NAME = 'storymaps-v1.0.3';
 
-console.log('🌐 Service Worker Base Path:', BASE_PATH);
+console.log('🎯 Service Worker starting with config:', {
+  basePath: BASE_PATH,
+  cacheName: CACHE_NAME,
+  location: self.location.href,
+  pathname: self.location.pathname
+});
 
 const urlsToCache = [
   `${BASE_PATH}/`,
@@ -33,9 +42,23 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('📦 Caching app shell');
-        return cache.addAll(urlsToCache);
+        console.log('📦 URLs to cache:', urlsToCache);
+        
+        // Cache URLs one by one to identify failures
+        return Promise.allSettled(
+          urlsToCache.map(url => 
+            cache.add(url).catch(error => {
+              console.warn(`⚠️ Failed to cache ${url}:`, error);
+              return null;
+            })
+          )
+        );
       })
-      .then(() => {
+      .then((results) => {
+        const successful = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+        console.log(`📦 Cache results: ${successful} successful, ${failed} failed`);
+        
         console.log('✅ Service Worker installed successfully');
         return self.skipWaiting();
       })
@@ -51,6 +74,8 @@ self.addEventListener('activate', (event) => {
   
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      console.log('🗂️ Existing caches:', cacheNames);
+      
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
@@ -80,9 +105,11 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request)
       .then((response) => {
         if (response) {
+          console.log('📦 Cache hit:', event.request.url);
           return response;
         }
 
+        console.log('🌐 Fetching:', event.request.url);
         return fetch(event.request).then((response) => {
           if (!response || response.status !== 200 || response.type !== 'basic') {
             return response;
@@ -98,17 +125,23 @@ self.addEventListener('fetch', (event) => {
           return response;
         });
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('❌ Fetch failed:', event.request.url, error);
+        
         if (event.request.mode === 'navigate') {
-          return caches.match(`${BASE_PATH}/index.html`) || caches.match('/index.html');
+          console.log('🔄 Serving fallback for navigation');
+          return caches.match(`${BASE_PATH}/index.html`) || 
+                 caches.match('/index.html') ||
+                 caches.match('index.html');
         }
       })
   );
 });
 
-// ✨ PUSH NOTIFICATION HANDLER
+// ✨ ENHANCED PUSH NOTIFICATION HANDLER
 self.addEventListener('push', (event) => {
   console.log('📬 Push notification received:', event);
+  console.log('📬 Push data:', event.data ? event.data.text() : 'No data');
   
   let notificationData = {
     title: 'StoryMaps',
@@ -148,6 +181,8 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  console.log('📋 Final notification data:', notificationData);
+
   event.waitUntil(
     self.registration.showNotification(notificationData.title, {
       body: notificationData.body,
@@ -167,9 +202,11 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// ✨ NOTIFICATION CLICK HANDLER
+// ✨ ENHANCED NOTIFICATION CLICK HANDLER
 self.addEventListener('notificationclick', (event) => {
   console.log('🔔 Notification clicked:', event);
+  console.log('🔔 Action:', event.action);
+  console.log('🔔 Notification data:', event.notification.data);
   
   const notification = event.notification;
   const action = event.action;
@@ -182,15 +219,27 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
   
-  const urlToOpen = data.url || `${BASE_PATH}/`;
+  let urlToOpen = data.url || `${BASE_PATH}/`;
+  
+  // Ensure URL is absolute
+  if (!urlToOpen.startsWith('http')) {
+    urlToOpen = self.location.origin + urlToOpen;
+  }
+  
+  console.log('🔗 Opening URL:', urlToOpen);
   
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
+        console.log('👥 Found clients:', clientList.length);
+        
         for (const client of clientList) {
+          console.log('👤 Client URL:', client.url);
           if (client.url.includes(self.location.origin) && 'focus' in client) {
             console.log('📱 Focusing existing window');
-            client.navigate(urlToOpen);
+            if ('navigate' in client) {
+              client.navigate(urlToOpen);
+            }
             return client.focus();
           }
         }
@@ -211,7 +260,7 @@ self.addEventListener('notificationclose', (event) => {
   console.log('❌ Notification closed:', event.notification.tag);
 });
 
-// ✨ MESSAGE HANDLER
+// ✨ ENHANCED MESSAGE HANDLER
 self.addEventListener('message', (event) => {
   console.log('💬 Message received from main app:', event.data);
   
@@ -219,20 +268,49 @@ self.addEventListener('message', (event) => {
   
   switch (type) {
     case 'SKIP_WAITING':
+      console.log('⏭️ Skipping waiting');
       self.skipWaiting();
       break;
       
     case 'GET_VERSION':
+      console.log('📋 Sending version info');
       event.ports[0].postMessage({ version: CACHE_NAME });
       break;
       
     case 'TRIGGER_NOTIFICATION':
-      self.registration.showNotification(data.title || 'Test Notification', {
+      console.log('🔔 Triggering notification:', data);
+      
+      const notificationOptions = {
         body: data.body || 'This is a test notification from StoryMaps!',
         icon: data.icon || `${BASE_PATH}/icon-192.png`,
+        badge: data.badge || `${BASE_PATH}/icon-192.png`,
         tag: data.tag || 'test-notification',
-        data: data.data || {},
-        actions: data.actions || []
+        data: data.data || { url: `${BASE_PATH}/` },
+        actions: data.actions || [],
+        requireInteraction: data.requireInteraction || false,
+        vibrate: [200, 100, 200],
+        timestamp: Date.now()
+      };
+      
+      console.log('🔔 Notification options:', notificationOptions);
+      
+      self.registration.showNotification(
+        data.title || 'Test Notification',
+        notificationOptions
+      ).then(() => {
+        console.log('✅ Manual notification shown successfully');
+      }).catch((error) => {
+        console.error('❌ Manual notification failed:', error);
+      });
+      break;
+      
+    case 'DEBUG_INFO':
+      console.log('🐛 Debug info requested');
+      event.ports[0].postMessage({
+        basePath: BASE_PATH,
+        cacheName: CACHE_NAME,
+        location: self.location.href,
+        registration: !!self.registration
       });
       break;
       
