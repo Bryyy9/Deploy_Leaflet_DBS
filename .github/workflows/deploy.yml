@@ -1,4 +1,4 @@
-# .github/workflows/deploy.yml - Fixed for npm install issues
+# .github/workflows/deploy.yml - Fixed Permission Issues
 name: Deploy to GitHub Pages
 
 on:
@@ -27,15 +27,13 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        
-    - name: Clear npm cache
-      run: npm cache clean --force
-      
-    - name: Delete package-lock.json if exists
-      run: rm -f package-lock.json
+        cache: 'npm'
         
     - name: Install dependencies
-      run: npm install
+      run: |
+        npm cache clean --force
+        rm -f package-lock.json
+        npm install
       
     - name: Build project
       run: npm run build
@@ -44,8 +42,9 @@ jobs:
         GITHUB_PAGES: true
         GITHUB_REPOSITORY: ${{ github.repository }}
         
+    # ✅ FIXED: Create .nojekyll without touch command
     - name: Create .nojekyll file
-      run: touch ./dist/.nojekyll
+      run: echo "" > ./dist/.nojekyll
       
     - name: List dist contents
       run: ls -la ./dist/
