@@ -1,4 +1,4 @@
-// src/scripts/utils/sw-register.js - Complete Enhanced Version
+// src/scripts/utils/sw-register.js - FIXED
 import { pushManager } from './push-manager.js';
 
 export async function registerSW() {
@@ -10,11 +10,35 @@ export async function registerSW() {
   try {
     console.log('🔧 Registering Service Worker...');
     
-    const registration = await navigator.serviceWorker.register('/service-worker.js', {
-      scope: '/'
-    });
+    // Try multiple paths
+    const swPaths = [
+      '/service-worker.js',
+      './service-worker.js'
+    ];
     
-    console.log('✅ Service Worker registered:', registration);
+    // Add base path if available
+    if (window.APP_CONFIG && window.APP_CONFIG.BASE_PATH) {
+      swPaths.unshift(`${window.APP_CONFIG.BASE_PATH}/service-worker.js`);
+    }
+    
+    let registration = null;
+    
+    for (const swPath of swPaths) {
+      try {
+        console.log(`🔄 Trying SW path: ${swPath}`);
+        registration = await navigator.serviceWorker.register(swPath, {
+          scope: window.APP_CONFIG?.BASE_PATH || '/'
+        });
+        console.log('✅ Service Worker registered:', registration);
+        break;
+      } catch (error) {
+        console.warn(`⚠️ Failed to register SW at ${swPath}:`, error.message);
+      }
+    }
+    
+    if (!registration) {
+      throw new Error('Could not register service worker at any path');
+    }
 
     registration.addEventListener('updatefound', () => {
       const newWorker = registration.installing;
@@ -33,6 +57,7 @@ export async function registerSW() {
       });
     });
 
+    // ✅ FIXED: Initialize push notifications safely
     await initializePushNotifications();
     
     return registration;
@@ -52,10 +77,16 @@ async function initializePushNotifications() {
     if (initialized) {
       console.log('✅ Push notifications initialized');
       
+      // ✅ FIXED: Safe auto-subscribe
       await pushManager.autoSubscribe();
       
-      const { notificationPermission } = await import('../components/notification-permission.js');
-      notificationPermission.autoShow();
+      // ✅ FIXED: Safe notification permission import
+      try {
+        const { notificationPermission } = await import('../components/notification-permission.js');
+        notificationPermission.autoShow();
+      } catch (importError) {
+        console.warn('⚠️ Could not load notification permission component:', importError);
+      }
       
     } else {
       console.log('⚠️ Push notifications not available');

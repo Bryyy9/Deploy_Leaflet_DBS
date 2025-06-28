@@ -1,9 +1,8 @@
-// webpack.config.js - Auto create .nojekyll
+// webpack.config.js - Fixed Environment Variables
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { DefinePlugin } = require('webpack');
-const fs = require('fs');
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
@@ -31,26 +30,6 @@ module.exports = (env, argv) => {
     basePath,
     repository: process.env.GITHUB_REPOSITORY
   });
-
-  // ✅ CUSTOM PLUGIN: Create .nojekyll file
-  class CreateNoJekyllPlugin {
-    apply(compiler) {
-      compiler.hooks.afterEmit.tapAsync('CreateNoJekyllPlugin', (compilation, callback) => {
-        const outputPath = compiler.options.output.path;
-        const nojekyllPath = path.join(outputPath, '.nojekyll');
-        
-        // Create .nojekyll file
-        fs.writeFile(nojekyllPath, '', (err) => {
-          if (err) {
-            console.warn('⚠️ Failed to create .nojekyll:', err.message);
-          } else {
-            console.log('✅ Created .nojekyll file');
-          }
-          callback();
-        });
-      });
-    }
-  }
   
   return {
     entry: './src/scripts/app.js',
@@ -86,14 +65,17 @@ module.exports = (env, argv) => {
     },
     
     plugins: [
-      // ✨ Define global variables
+      // ✅ FIXED: Define global variables with proper fallbacks
       new DefinePlugin({
         __BASE_PATH__: JSON.stringify(basePath),
         __IS_PRODUCTION__: JSON.stringify(isProduction),
         __IS_GITHUB_PAGES__: JSON.stringify(isGitHubPages),
         __PUBLIC_PATH__: JSON.stringify(publicPath),
         __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
-        __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0')
+        __VERSION__: JSON.stringify('1.0.0'),
+        // ✅ FIXED: Add process.env fallback for browser
+        'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
+        'process.env.VAPID_PUBLIC_KEY': JSON.stringify(process.env.VAPID_PUBLIC_KEY || null)
       }),
       
       new HtmlWebpackPlugin({
@@ -125,13 +107,35 @@ module.exports = (env, argv) => {
             from: './test-notification.html',
             to: 'test-notification.html',
             noErrorOnMissing: true
+          },
+          {
+            from: './.nojekyll',
+            to: '.nojekyll',
+            noErrorOnMissing: true
           }
         ]
-      }),
-
-      // ✅ ADD: Custom plugin to create .nojekyll
-      ...(isGitHubPages ? [new CreateNoJekyllPlugin()] : [])
+      })
     ],
+    
+    // ✅ FIXED: Add resolve fallbacks for Node.js modules
+    resolve: {
+      extensions: ['.js', '.json'],
+      alias: {
+        '@': path.resolve(__dirname, 'src'),
+        '@scripts': path.resolve(__dirname, 'src/scripts'),
+        '@presenters': path.resolve(__dirname, 'src/scripts/presenters'),
+        '@views': path.resolve(__dirname, 'src/scripts/views'),
+        '@data': path.resolve(__dirname, 'src/scripts/data'),
+        '@utils': path.resolve(__dirname, 'src/scripts/utils')
+      },
+      fallback: {
+        "process": false,
+        "buffer": false,
+        "util": false,
+        "path": false,
+        "fs": false
+      }
+    },
     
     devServer: {
       port: 3000,
@@ -146,18 +150,6 @@ module.exports = (env, argv) => {
       compress: true,
       headers: {
         'Service-Worker-Allowed': '/'
-      }
-    },
-    
-    resolve: {
-      extensions: ['.js', '.json'],
-      alias: {
-        '@': path.resolve(__dirname, 'src'),
-        '@scripts': path.resolve(__dirname, 'src/scripts'),
-        '@presenters': path.resolve(__dirname, 'src/scripts/presenters'),
-        '@views': path.resolve(__dirname, 'src/scripts/views'),
-        '@data': path.resolve(__dirname, 'src/scripts/data'),
-        '@utils': path.resolve(__dirname, 'src/scripts/utils')
       }
     },
     

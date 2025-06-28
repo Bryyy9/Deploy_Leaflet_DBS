@@ -1,10 +1,10 @@
-// src/scripts/utils/push-manager.js - PRODUCTION READY
+// src/scripts/utils/push-manager.js - FIXED Browser Compatible
 export class PushManager {
   constructor() {
     this.swRegistration = null;
     this.pushSubscription = null;
     
-    // ✅ FIXED: Production-ready VAPID key handling
+    // ✅ FIXED: Browser-compatible VAPID key handling
     this.vapidPublicKey = this.getVapidKey();
     this.isSupported = this.checkSupport();
     this.permissionStatus = 'default';
@@ -15,16 +15,18 @@ export class PushManager {
     });
   }
 
-  // ✅ FIXED: Better VAPID key management
+  // ✅ FIXED: Remove process.env usage
   getVapidKey() {
-    // In production, you should use your own VAPID key
-    // For demo purposes, we'll generate a test key
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    // For demo purposes, we'll use a test key or generate one
+    const isDevelopment = window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1';
+    
+    if (isDevelopment) {
       // Development - use test key
-      return this.generateTestVapidKey();
+      return 'BCVxar7AsITJXXXMh4EUzGIlq7r6oO1wS4ZEw5Qhkr8qdXVOOm7w7VCXJfxZpPUm8e7MqtqVlqVlqVlqVlqVl';
     } else {
-      // Production - use environment variable or generate
-      return process.env.VAPID_PUBLIC_KEY || this.generateTestVapidKey();
+      // Production - use window global or generate test key
+      return window.VAPID_PUBLIC_KEY || this.generateTestVapidKey();
     }
   }
 
@@ -74,6 +76,7 @@ export class PushManager {
         './service-worker.js'
       ];
       
+      // Add base path if available
       if (window.APP_CONFIG && window.APP_CONFIG.BASE_PATH) {
         swPaths.unshift(`${window.APP_CONFIG.BASE_PATH}/service-worker.js`);
       }
@@ -106,7 +109,7 @@ export class PushManager {
       this.pushSubscription = await this.swRegistration.pushManager.getSubscription();
       
       if (this.pushSubscription) {
-        console.log('✅ Existing push subscription found:', this.pushSubscription);
+        console.log('✅ Existing push subscription found');
         return true;
       }
       
@@ -194,7 +197,6 @@ export class PushManager {
       
       console.log('🔑 Creating subscription...');
       
-      // ✅ FIXED: Try subscription with better error handling
       let subscription = null;
       
       // Method 1: Try with VAPID key
@@ -295,8 +297,8 @@ export class PushManager {
       if (Notification.permission === 'granted') {
         const notification = new Notification('StoryMaps Test 🎉', {
           body: 'Push notifications are working! This is a test notification.',
-          icon: window.location.origin + '/icon-192.png',
-          badge: window.location.origin + '/icon-192.png',
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
           tag: 'test-notification',
           requireInteraction: false,
           timestamp: Date.now()
@@ -336,6 +338,58 @@ export class PushManager {
     } catch (error) {
       console.error('❌ Failed to send test notification:', error);
       throw error;
+    }
+  }
+
+  async sendStoryNotification(story) {
+    console.log('📚 sendStoryNotification() called for:', story.name);
+    
+    try {
+      console.log('📚 Sending story notification...');
+      
+      // Method 1: Direct notification
+      if (Notification.permission === 'granted') {
+        const notification = new Notification('New Story Added! 📖', {
+          body: `"${story.name}" has been shared successfully!`,
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: 'story-added',
+          requireInteraction: false,
+          timestamp: Date.now()
+        });
+        
+        notification.onclick = () => {
+          console.log('📱 Story notification clicked!');
+          window.location.hash = `#/detail/${story.id}`;
+          window.focus();
+          notification.close();
+        };
+        
+        console.log('✅ Direct story notification sent');
+      }
+      
+      // Method 2: Via Service Worker (if available)
+      if (this.swRegistration && this.swRegistration.active) {
+        this.swRegistration.active.postMessage({
+          type: 'TRIGGER_NOTIFICATION',
+          data: {
+            title: 'New Story Added! 📖',
+            body: `"${story.name}" has been shared successfully!`,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: 'story-added',
+            data: {
+              url: `/#/detail/${story.id}`,
+              storyId: story.id
+            }
+          }
+        });
+        
+        console.log('✅ Service Worker story notification sent');
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to send story notification:', error);
     }
   }
 
@@ -412,6 +466,18 @@ export class PushManager {
     } catch (error) {
       console.error('❌ Error converting array buffer:', error);
       throw error;
+    }
+  }
+
+  async autoSubscribe() {
+    try {
+      console.log('🔄 Auto-subscribe check...');
+      if (this.permissionStatus === 'granted' && !this.pushSubscription) {
+        console.log('🔄 Auto-subscribing to push notifications...');
+        await this.subscribe();
+      }
+    } catch (error) {
+      console.warn('⚠️ Auto-subscribe failed:', error);
     }
   }
 }
