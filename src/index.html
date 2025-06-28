@@ -1,3 +1,4 @@
+<!-- src/index.html - UPDATE navigation -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -35,17 +36,28 @@
   <!-- Header -->
   <header class="header">
     <div class="container">
-      <h1 class="logo">📍 StoryMaps</h1>
+      <a href="#/" class="logo">📍 StoryMaps</a>
       <nav class="nav">
         <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
           <i class="fas fa-bars"></i>
         </button>
         <ul class="nav-menu" id="navMenu">
-          <li><a href="#/" class="nav-link">Home</a></li>
-          <li><a href="#/add" class="nav-link">Add Story</a></li>
-          <li><a href="#/favorites" class="nav-link">Favorites</a></li>
-          <li><a href="#/settings" class="nav-link">Settings</a></li>
-          <li><a href="#/login" class="nav-link" id="authLink">Login</a></li>
+          <li><a href="#/" class="nav-link">
+            <i class="fas fa-home"></i> Home
+          </a></li>
+          <li><a href="#/add" class="nav-link">
+            <i class="fas fa-plus"></i> Add Story
+          </a></li>
+          <li><a href="#/favorites" class="nav-link">
+            <i class="fas fa-heart"></i> Favorites
+          </a></li>
+          <li><a href="#/settings" class="nav-link">
+            <i class="fas fa-cog"></i> Settings
+          </a></li>
+          <!-- ✅ Auth link akan di-update oleh JavaScript -->
+          <li><a href="#/login" class="nav-link" id="authLink">
+            <i class="fas fa-sign-in-alt"></i> Login
+          </a></li>
         </ul>
       </nav>
     </div>

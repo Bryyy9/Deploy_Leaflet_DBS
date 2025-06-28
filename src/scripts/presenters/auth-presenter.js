@@ -245,6 +245,7 @@ export class AuthPresenter extends BasePresenter {
     }, 2000);
   }
 
+  // src/scripts/presenters/auth-presenter.js - UPDATE handleLogin
   async handleLogin(formData) {
     if (this.isDestroyed) return;
     
@@ -253,7 +254,7 @@ export class AuthPresenter extends BasePresenter {
     console.log('🔐 Attempting login...');
     const response = await ApiService.login(email, password);
 
-    if (this.isDestroyed) return; // Check again after async operation
+    if (this.isDestroyed) return;
 
     if (!response.loginResult || !response.loginResult.token) {
       throw new Error('Invalid login response format');
@@ -267,7 +268,11 @@ export class AuthPresenter extends BasePresenter {
       name: name || email.split('@')[0]
     }));
 
-    this.dispatchAuthChange(true, { id: userId, name });
+    // ✅ FIXED: Dispatch auth change event
+    this.dispatchAuthChange(true, { 
+      id: userId, 
+      name: name || email.split('@')[0] 
+    });
 
     console.log('✅ Login successful');
 
@@ -282,6 +287,19 @@ export class AuthPresenter extends BasePresenter {
       }
     }, 1500);
   }
+
+dispatchAuthChange(isLoggedIn, user) {
+  if (this.isDestroyed) return;
+  
+  try {
+    console.log('📡 Dispatching auth change:', { isLoggedIn, user });
+    document.dispatchEvent(new CustomEvent('authChange', {
+      detail: { isLoggedIn, user }
+    }));
+  } catch (error) {
+    console.error('Error dispatching auth change:', error);
+  }
+}
 
   handleAuthError(error) {
     if (this.isDestroyed) return;

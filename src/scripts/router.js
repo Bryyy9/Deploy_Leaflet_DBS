@@ -343,13 +343,16 @@ export class Router {
       // Cleanup current view/presenter before logout
       this.cleanupPrevious();
       
+      // Clear auth data
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       
+      // ✅ FIXED: Dispatch auth change event
       document.dispatchEvent(new CustomEvent('authChange', {
         detail: { isLoggedIn: false, user: null }
       }));
       
+      // Show logout message
       if (window.Swal) {
         window.Swal.fire({
           icon: 'success',
@@ -362,8 +365,9 @@ export class Router {
         });
       }
       
+      // ✅ FIXED: Redirect setelah logout
       setTimeout(() => {
-        this.navigate('/login');
+        this.navigate('/');
       }, 1000);
       
     } catch (error) {
