@@ -1,4 +1,4 @@
-# .github/workflows/deploy.yml - UPDATE
+# .github/workflows/deploy.yml - ENHANCED
 name: Deploy to GitHub Pages
 
 on:
@@ -35,6 +35,22 @@ jobs:
         rm -f package-lock.json
         npm install
       
+    # ✅ TAMBAH: Verify source files
+    - name: Verify source files
+      run: |
+        echo "🔍 Checking source files..."
+        echo "📁 src/public contents:"
+        ls -la src/public/ || echo "❌ src/public not found"
+        
+        if [ -f "src/public/service-worker.js" ]; then
+          echo "✅ service-worker.js found in source"
+          echo "📄 First 10 lines:"
+          head -10 src/public/service-worker.js
+        else
+          echo "❌ service-worker.js NOT found in source"
+          exit 1
+        fi
+      
     - name: Build project
       run: npm run build
       env:
@@ -42,26 +58,45 @@ jobs:
         GITHUB_PAGES: true
         GITHUB_REPOSITORY: ${{ github.repository }}
         
-    # ✅ TAMBAH: Verifikasi service worker
-    - name: Verify service worker
+    # ✅ ENHANCED: Comprehensive verification
+    - name: Verify build output
       run: |
-        echo "🔍 Checking if service-worker.js exists..."
+        echo "🔍 Verifying build output..."
+        echo "📁 dist/ contents:"
+        ls -la ./dist/
+        echo ""
+        
+        # Check service worker
         if [ -f "./dist/service-worker.js" ]; then
-          echo "✅ service-worker.js found"
+          echo "✅ service-worker.js found in dist"
+          echo "📊 File size: $(wc -c < ./dist/service-worker.js) bytes"
+          echo "📄 First 5 lines:"
           head -5 ./dist/service-worker.js
+          echo "📄 Last 5 lines:"
+          tail -5 ./dist/service-worker.js
         else
-          echo "❌ service-worker.js NOT found"
-          echo "📁 Contents of dist:"
-          ls -la ./dist/
+          echo "❌ service-worker.js NOT found in dist"
+          echo "🔍 Searching for service worker files:"
+          find ./dist -name "*service*" -o -name "*worker*" || echo "No service worker files found"
           exit 1
         fi
-      
-    - name: List dist contents
-      run: |
-        echo "📁 Final dist contents:"
-        ls -la ./dist/
-        echo "📁 Service Worker check:"
-        ls -la ./dist/service-worker.js || echo "❌ service-worker.js missing"
+        
+        # Check manifest
+        if [ -f "./dist/manifest.json" ]; then
+          echo "✅ manifest.json found"
+        else
+          echo "❌ manifest.json NOT found"
+        fi
+        
+        # Check index.html
+        if [ -f "./dist/index.html" ]; then
+          echo "✅ index.html found"
+        else
+          echo "❌ index.html NOT found"
+          exit 1
+        fi
+        
+        echo "✅ Build verification complete"
       
     - name: Setup Pages
       uses: actions/configure-pages@v4
@@ -81,3 +116,16 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        
+      # ✅ TAMBAH: Post-deploy verification
+      - name: Verify deployment
+        run: |
+          echo "🌐 Deployment URL: ${{ steps.deployment.outputs.page_url }}"
+          echo "🔍 Waiting for deployment to be ready..."
+          sleep 30
+          
+          # Test service worker accessibility
+          SW_URL="${{ steps.deployment.outputs.page_url }}service-worker.js"
+          echo "🧪 Testing: $SW_URL"
+          
+          curl -I "$SW_URL" || echo "⚠️ Could not test service worker URL"

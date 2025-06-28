@@ -1,4 +1,4 @@
-// webpack.config.js - UPDATE
+// webpack.config.js - COMPLETE FIX
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
@@ -83,20 +83,32 @@ module.exports = (env, argv) => {
         } : false
       }),
       
-      // ✅ FIXED: Pastikan service worker di-copy dengan benar
+      // ✅ FIXED: Explicit Service Worker copy
       new CopyWebpackPlugin({
         patterns: [
-          { 
-            from: './src/public', 
-            to: './',
-            noErrorOnMissing: true
-          },
-          // ✅ TAMBAH: Copy service worker eksplisit
+          // ✅ PRIORITY: Service Worker HARUS di-copy dulu
           {
             from: './src/public/service-worker.js',
             to: 'service-worker.js',
+            noErrorOnMissing: false,
+            info: { minimized: false } // Jangan minify SW
+          },
+          // Manifest
+          {
+            from: './src/public/manifest.json',
+            to: 'manifest.json',
             noErrorOnMissing: false
           },
+          // Icons dan assets lainnya
+          {
+            from: './src/public',
+            to: './',
+            noErrorOnMissing: true,
+            globOptions: {
+              ignore: ['**/service-worker.js', '**/manifest.json'] // Avoid duplicate
+            }
+          },
+          // Test files
           {
             from: './test-notification.html',
             to: 'test-notification.html',
@@ -133,7 +145,6 @@ module.exports = (env, argv) => {
         directory: path.join(__dirname, 'dist'),
       },
       compress: true,
-      // ✅ TAMBAH: Headers untuk Service Worker
       headers: {
         'Service-Worker-Allowed': '/',
         'Access-Control-Allow-Origin': '*'

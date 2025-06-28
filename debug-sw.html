@@ -1,0 +1,149 @@
+<!-- debug-sw.html - TAMBAH file baru di root -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Worker Debug</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            padding: 20px; 
+            background: #0a0a0f; 
+            color: #fff; 
+        }
+        .test-result { 
+            padding: 10px; 
+            margin: 5px 0; 
+            border-radius: 5px; 
+        }
+        .success { background: #1a472a; }
+        .error { background: #7f1d1d; }
+        .info { background: #1e3a8a; }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            background: #00d4ff; 
+            border: none; 
+            border-radius: 5px; 
+            color: white; 
+            cursor: pointer; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Service Worker Debug Tool</h1>
+    <button onclick="runDiagnostics()">🔍 Run Full Diagnostics</button>
+    <button onclick="testAllPaths()">🛣️ Test All SW Paths</button>
+    <button onclick="clearResults()">🗑️ Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            document.getElementById('results').appendChild(div);
+            console.log(message);
+        }
+
+        async function runDiagnostics() {
+            log('🔍 Starting Service Worker diagnostics...', 'info');
+            
+            // Environment info
+            log(`🌐 Location: ${window.location.href}`, 'info');
+            log(`🌐 Hostname: ${window.location.hostname}`, 'info');
+            log(`🌐 Pathname: ${window.location.pathname}`, 'info');
+            log(`🌐 Origin: ${window.location.origin}`, 'info');
+            
+            // Check support
+            log(`📱 SW Support: ${'serviceWorker' in navigator}`, 'serviceWorker' in navigator ? 'success' : 'error');
+            log(`📱 Push Support: ${'PushManager' in window}`, 'PushManager' in window ? 'success' : 'error');
+            log(`📱 Notification Support: ${'Notification' in window}`, 'Notification' in window ? 'success' : 'error');
+            
+            // Check app config
+            if (window.APP_CONFIG) {
+                log(`⚙️ Base Path: ${window.APP_CONFIG.BASE_PATH}`, 'info');
+                log(`⚙️ Is Production: ${window.APP_CONFIG.IS_PRODUCTION}`, 'info');
+                log(`⚙️ Is GitHub Pages: ${window.APP_CONFIG.IS_GITHUB_PAGES}`, 'info');
+            } else {
+                log('⚠️ APP_CONFIG not found', 'error');
+            }
+            
+            await testAllPaths();
+        }
+
+        async function testAllPaths() {
+            log('🛣️ Testing Service Worker paths...', 'info');
+            
+            const basePath = window.APP_CONFIG?.BASE_PATH || '';
+            const isGitHubPages = window.location.hostname.includes('github.io');
+            
+            const paths = [
+                '/service-worker.js',
+                './service-worker.js',
+                `${window.location.origin}/service-worker.js`,
+            ];
+            
+            if (isGitHubPages && basePath) {
+                paths.unshift(`${basePath}/service-worker.js`);
+                paths.unshift(`${window.location.origin}${basePath}/service-worker.js`);
+            }
+            
+            log(`📋 Testing ${paths.length} paths:`, 'info');
+            paths.forEach(path => log(`  - ${path}`, 'info'));
+            
+            for (const path of paths) {
+                try {
+                    log(`🧪 Testing: ${path}`, 'info');
+                    
+                    // Test file existence
+                    const response = await fetch(path, { method: 'HEAD', cache: 'no-cache' });
+                    
+                    if (response.ok) {
+                        log(`✅ File exists: ${path} (${response.status})`, 'success');
+                        
+                        // Try to register
+                        try {
+                            const registration = await navigator.serviceWorker.register(path, {
+                                scope: basePath || '/',
+                                updateViaCache: 'none'
+                            });
+                            
+                            log(`🎯 Registration successful: ${path}`, 'success');
+                            log(`📍 Scope: ${registration.scope}`, 'success');
+                            
+                            // Wait for ready
+                            await navigator.serviceWorker.ready;
+                            log(`✅ Service Worker ready`, 'success');
+                            
+                            return; // Success, stop testing
+                            
+                        } catch (regError) {
+                            log(`❌ Registration failed: ${regError.message}`, 'error');
+                        }
+                        
+                    } else {
+                        log(`❌ File not found: ${path} (${response.status})`, 'error');
+                    }
+                    
+                } catch (error) {
+                    log(`❌ Test failed: ${path} - ${error.message}`, 'error');
+                }
+            }
+            
+            log('❌ All Service Worker paths failed', 'error');
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Auto-run on load
+        window.onload = () => {
+            log('🚀 Debug tool loaded', 'info');
+        };
+    </script>
+</body>
+</html>
