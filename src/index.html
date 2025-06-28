@@ -20,18 +20,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="StoryMaps">
-  
-  <!-- Open Graph Meta Tags -->
-  <meta property="og:title" content="StoryMaps - Enhanced">
-  <meta property="og:description" content="Share your stories with location">
-  <meta property="og:type" content="website">
-  <meta property="og:image" content="icon-512.png">
-  
-  <!-- Twitter Card Meta Tags -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="StoryMaps - Enhanced">
-  <meta name="twitter:description" content="Share your stories with location">
-  <meta name="twitter:image" content="icon-512.png">
 </head>
 <body>
   <!-- Skip Link -->
@@ -90,7 +78,9 @@
   <!-- ✨ Base path configuration -->
   <script>
     window.BASE_PATH = '<%= typeof BASE_PATH !== "undefined" ? BASE_PATH : "" %>';
+    window.IS_PRODUCTION = <%= typeof IS_PRODUCTION !== "undefined" ? IS_PRODUCTION : false %>;
     console.log('🌐 Base path configured:', window.BASE_PATH);
+    console.log('🏗️ Production mode:', window.IS_PRODUCTION);
   </script>
 </body>
 </html>
