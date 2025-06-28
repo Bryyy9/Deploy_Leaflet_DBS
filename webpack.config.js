@@ -1,7 +1,8 @@
-// webpack.config.js - Simplified Version
+// webpack.config.js - Fixed Version
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const { DefinePlugin } = require('webpack');
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
@@ -20,11 +21,13 @@ module.exports = (env, argv) => {
   };
   
   const publicPath = getPublicPath();
+  const basePath = isGitHubPages ? publicPath.slice(0, -1) : '';
   
   console.log('🔧 Webpack Config:', {
     isProduction,
     isGitHubPages,
     publicPath,
+    basePath,
     repository: process.env.GITHUB_REPOSITORY
   });
   
@@ -62,15 +65,20 @@ module.exports = (env, argv) => {
     },
     
     plugins: [
+      // ✨ Define global variables
+      new DefinePlugin({
+        __BASE_PATH__: JSON.stringify(basePath),
+        __IS_PRODUCTION__: JSON.stringify(isProduction),
+        __IS_GITHUB_PAGES__: JSON.stringify(isGitHubPages),
+        __PUBLIC_PATH__: JSON.stringify(publicPath),
+        __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
+        __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0')
+      }),
+      
       new HtmlWebpackPlugin({
         template: './src/index.html',
         filename: 'index.html',
         inject: 'body',
-        templateParameters: {
-          BASE_PATH: isGitHubPages ? publicPath.slice(0, -1) : '',
-          IS_PRODUCTION: isProduction,
-          PUBLIC_PATH: publicPath
-        },
         minify: isProduction ? {
           removeComments: true,
           collapseWhitespace: true,

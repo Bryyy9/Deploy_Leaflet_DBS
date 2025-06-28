@@ -1,26 +1,41 @@
-// src/public/service-worker.js - Enhanced with debugging
-const getBasePath = () => {
+// src/public/service-worker.js - Updated to detect base path
+const detectBasePath = () => {
   const pathname = self.location.pathname;
   console.log('🌐 SW pathname:', pathname);
   
-  if (pathname.includes('/')) {
+  // Detect GitHub Pages pattern
+  if (pathname.includes('/') && pathname !== '/') {
     const parts = pathname.split('/');
-    if (parts.length > 1 && parts[1] && parts[1] !== 'service-worker.js') {
+    if (parts.length > 1 && parts[1] && !parts[1].endsWith('.js')) {
       const basePath = `/${parts[1]}`;
       console.log('🌐 SW detected base path:', basePath);
       return basePath;
     }
   }
+  
+  // Fallback: check if we're on GitHub Pages
+  if (self.location.hostname.includes('github.io')) {
+    const hostParts = self.location.hostname.split('.');
+    if (hostParts[0] !== 'github') {
+      // User pages, might have repo name in path
+      const pathParts = self.location.pathname.split('/');
+      if (pathParts[1] && pathParts[1] !== 'service-worker.js') {
+        return `/${pathParts[1]}`;
+      }
+    }
+  }
+  
   return '';
 };
 
-const BASE_PATH = getBasePath();
-const CACHE_NAME = 'storymaps-v1.0.3';
+const BASE_PATH = detectBasePath();
+const CACHE_NAME = 'storymaps-v1.0.4';
 
 console.log('🎯 Service Worker starting with config:', {
   basePath: BASE_PATH,
   cacheName: CACHE_NAME,
   location: self.location.href,
+  hostname: self.location.hostname,
   pathname: self.location.pathname
 });
 
@@ -105,11 +120,9 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request)
       .then((response) => {
         if (response) {
-          console.log('📦 Cache hit:', event.request.url);
           return response;
         }
 
-        console.log('🌐 Fetching:', event.request.url);
         return fetch(event.request).then((response) => {
           if (!response || response.status !== 200 || response.type !== 'basic') {
             return response;
@@ -138,10 +151,9 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ✨ ENHANCED PUSH NOTIFICATION HANDLER
+// ✨ PUSH NOTIFICATION HANDLER
 self.addEventListener('push', (event) => {
   console.log('📬 Push notification received:', event);
-  console.log('📬 Push data:', event.data ? event.data.text() : 'No data');
   
   let notificationData = {
     title: 'StoryMaps',
@@ -181,8 +193,6 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  console.log('📋 Final notification data:', notificationData);
-
   event.waitUntil(
     self.registration.showNotification(notificationData.title, {
       body: notificationData.body,
@@ -202,11 +212,9 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// ✨ ENHANCED NOTIFICATION CLICK HANDLER
+// ✨ NOTIFICATION CLICK HANDLER
 self.addEventListener('notificationclick', (event) => {
   console.log('🔔 Notification clicked:', event);
-  console.log('🔔 Action:', event.action);
-  console.log('🔔 Notification data:', event.notification.data);
   
   const notification = event.notification;
   const action = event.action;
@@ -231,10 +239,7 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        console.log('👥 Found clients:', clientList.length);
-        
         for (const client of clientList) {
-          console.log('👤 Client URL:', client.url);
           if (client.url.includes(self.location.origin) && 'focus' in client) {
             console.log('📱 Focusing existing window');
             if ('navigate' in client) {
@@ -255,12 +260,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// ✨ NOTIFICATION CLOSE HANDLER
-self.addEventListener('notificationclose', (event) => {
-  console.log('❌ Notification closed:', event.notification.tag);
-});
-
-// ✨ ENHANCED MESSAGE HANDLER
+// ✨ MESSAGE HANDLER
 self.addEventListener('message', (event) => {
   console.log('💬 Message received from main app:', event.data);
   
@@ -268,49 +268,20 @@ self.addEventListener('message', (event) => {
   
   switch (type) {
     case 'SKIP_WAITING':
-      console.log('⏭️ Skipping waiting');
       self.skipWaiting();
       break;
       
     case 'GET_VERSION':
-      console.log('📋 Sending version info');
       event.ports[0].postMessage({ version: CACHE_NAME });
       break;
       
     case 'TRIGGER_NOTIFICATION':
-      console.log('🔔 Triggering notification:', data);
-      
-      const notificationOptions = {
+      self.registration.showNotification(data.title || 'Test Notification', {
         body: data.body || 'This is a test notification from StoryMaps!',
         icon: data.icon || `${BASE_PATH}/icon-192.png`,
-        badge: data.badge || `${BASE_PATH}/icon-192.png`,
         tag: data.tag || 'test-notification',
-        data: data.data || { url: `${BASE_PATH}/` },
-        actions: data.actions || [],
-        requireInteraction: data.requireInteraction || false,
-        vibrate: [200, 100, 200],
-        timestamp: Date.now()
-      };
-      
-      console.log('🔔 Notification options:', notificationOptions);
-      
-      self.registration.showNotification(
-        data.title || 'Test Notification',
-        notificationOptions
-      ).then(() => {
-        console.log('✅ Manual notification shown successfully');
-      }).catch((error) => {
-        console.error('❌ Manual notification failed:', error);
-      });
-      break;
-      
-    case 'DEBUG_INFO':
-      console.log('🐛 Debug info requested');
-      event.ports[0].postMessage({
-        basePath: BASE_PATH,
-        cacheName: CACHE_NAME,
-        location: self.location.href,
-        registration: !!self.registration
+        data: data.data || {},
+        actions: data.actions || []
       });
       break;
       
