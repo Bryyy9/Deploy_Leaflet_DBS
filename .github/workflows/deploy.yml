@@ -44,7 +44,7 @@ jobs:
         
     # ✅ FIXED: Create .nojekyll without touch command
     - name: Create .nojekyll file
-      run: echo "" > ./dist/.nojekyll
+      run: touch "" > ./dist/.nojekyll
       
     - name: List dist contents
       run: ls -la ./dist/
