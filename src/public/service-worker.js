@@ -1,8 +1,19 @@
-// src/public/service-worker.js - Update untuk GitHub Pages
-const CACHE_NAME = 'storymaps-v1.0.1'; // Increment version
-const BASE_PATH = self.location.pathname.includes('leaflet-bri-enhanced') 
-  ? '/leaflet-bri-enhanced' 
-  : '';
+// src/public/service-worker.js - Dynamic Base Path
+const getBasePath = () => {
+  const pathname = self.location.pathname;
+  if (pathname.includes('/')) {
+    const parts = pathname.split('/');
+    if (parts.length > 1 && parts[1]) {
+      return `/${parts[1]}`;
+    }
+  }
+  return '';
+};
+
+const BASE_PATH = getBasePath();
+const CACHE_NAME = 'storymaps-v1.0.2';
+
+console.log('🌐 Service Worker Base Path:', BASE_PATH);
 
 const urlsToCache = [
   `${BASE_PATH}/`,
@@ -89,13 +100,13 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => {
         if (event.request.mode === 'navigate') {
-          return caches.match(`${BASE_PATH}/index.html`);
+          return caches.match(`${BASE_PATH}/index.html`) || caches.match('/index.html');
         }
       })
   );
 });
 
-// ✨ PUSH NOTIFICATION HANDLER (sama seperti sebelumnya)
+// ✨ PUSH NOTIFICATION HANDLER
 self.addEventListener('push', (event) => {
   console.log('📬 Push notification received:', event);
   
@@ -230,4 +241,4 @@ self.addEventListener('message', (event) => {
   }
 });
 
-console.log('🎯 Service Worker script loaded');
+console.log('🎯 Service Worker script loaded with base path:', BASE_PATH);

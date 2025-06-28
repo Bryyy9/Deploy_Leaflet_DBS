@@ -9,22 +9,32 @@ module.exports = (env, argv) => {
   const isGitHubPages = process.env.GITHUB_PAGES === 'true' || 
                        process.env.GITHUB_ACTIONS === 'true';
   
-  // Get repository name from package.json or environment
+  // Get repository name from environment
   const getPublicPath = () => {
-    if (isGitHubPages) {
-      const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'leaflet-bri-enhanced';
+    if (isGitHubPages && process.env.GITHUB_REPOSITORY) {
+      const repoName = process.env.GITHUB_REPOSITORY.split('/')[1];
       return `/${repoName}/`;
     }
     return '/';
   };
   
+  const publicPath = getPublicPath();
+  
+  console.log('🔧 Webpack Config:', {
+    isProduction,
+    isGitHubPages,
+    publicPath,
+    repository: process.env.GITHUB_REPOSITORY
+  });
+  
   return {
     entry: './src/scripts/app.js',
     output: {
       path: path.resolve(__dirname, 'dist'),
-      filename: isProduction ? 'bundle.[contenthash].js' : 'bundle.js',
+      filename: isProduction ? 'js/bundle.[contenthash].js' : 'js/bundle.js',
       clean: true,
-      publicPath: getPublicPath()
+      publicPath: publicPath,
+      assetModuleFilename: 'assets/[name].[hash][ext]'
     },
     module: {
       rules: [
@@ -52,6 +62,10 @@ module.exports = (env, argv) => {
       new HtmlWebpackPlugin({
         template: './src/index.html',
         filename: 'index.html',
+        inject: 'body',
+        templateParameters: {
+          BASE_PATH: isGitHubPages ? publicPath.slice(0, -1) : ''
+        },
         minify: isProduction ? {
           removeComments: true,
           collapseWhitespace: true,
@@ -72,10 +86,15 @@ module.exports = (env, argv) => {
             to: './',
             noErrorOnMissing: true
           },
-          // ✨ Copy test files for debugging
           {
             from: './test-notification.html',
             to: 'test-notification.html',
+            noErrorOnMissing: true
+          },
+          // ✨ Copy .nojekyll file
+          {
+            from: './.nojekyll',
+            to: '.nojekyll',
             noErrorOnMissing: true
           }
         ]
@@ -120,7 +139,6 @@ module.exports = (env, argv) => {
       } : false,
       minimize: isProduction
     },
-    // ✨ Better source maps for debugging
     devtool: isProduction ? 'source-map' : 'eval-source-map'
   };
 };

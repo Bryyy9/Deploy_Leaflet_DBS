@@ -4,11 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StoryMaps - Enhanced</title>
+  
+  <!-- ✨ Dynamic base path untuk GitHub Pages -->
+  <% if (typeof BASE_PATH !== 'undefined' && BASE_PATH) { %>
+  <base href="<%= BASE_PATH %>/">
+  <% } %>
+  
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <meta name="theme-color" content="#667eea">
+  <meta name="theme-color" content="#00d4ff">
   <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📍</text></svg>">
+  
+  <!-- PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StoryMaps">
+  
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="StoryMaps - Enhanced">
+  <meta property="og:description" content="Share your stories with location">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="icon-512.png">
+  
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="StoryMaps - Enhanced">
+  <meta name="twitter:description" content="Share your stories with location">
+  <meta name="twitter:image" content="icon-512.png">
 </head>
 <body>
   <!-- Skip Link -->
@@ -26,7 +49,7 @@
           <li><a href="#/" class="nav-link">Home</a></li>
           <li><a href="#/add" class="nav-link">Add Story</a></li>
           <li><a href="#/favorites" class="nav-link">Favorites</a></li>
-          <li><a href="#/settings" class="nav-link">Settings</a></li> <!-- ✨ TAMBAH INI -->
+          <li><a href="#/settings" class="nav-link">Settings</a></li>
           <li><a href="#/login" class="nav-link" id="authLink">Login</a></li>
         </ul>
       </nav>
@@ -63,5 +86,11 @@
   <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <!-- ✨ Base path configuration -->
+  <script>
+    window.BASE_PATH = '<%= typeof BASE_PATH !== "undefined" ? BASE_PATH : "" %>';
+    console.log('🌐 Base path configured:', window.BASE_PATH);
+  </script>
 </body>
 </html>
