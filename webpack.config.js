@@ -1,8 +1,9 @@
-// webpack.config.js - Fixed Version
+// webpack.config.js - Auto create .nojekyll
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { DefinePlugin } = require('webpack');
+const fs = require('fs');
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
@@ -30,6 +31,26 @@ module.exports = (env, argv) => {
     basePath,
     repository: process.env.GITHUB_REPOSITORY
   });
+
+  // ✅ CUSTOM PLUGIN: Create .nojekyll file
+  class CreateNoJekyllPlugin {
+    apply(compiler) {
+      compiler.hooks.afterEmit.tapAsync('CreateNoJekyllPlugin', (compilation, callback) => {
+        const outputPath = compiler.options.output.path;
+        const nojekyllPath = path.join(outputPath, '.nojekyll');
+        
+        // Create .nojekyll file
+        fs.writeFile(nojekyllPath, '', (err) => {
+          if (err) {
+            console.warn('⚠️ Failed to create .nojekyll:', err.message);
+          } else {
+            console.log('✅ Created .nojekyll file');
+          }
+          callback();
+        });
+      });
+    }
+  }
   
   return {
     entry: './src/scripts/app.js',
@@ -104,14 +125,12 @@ module.exports = (env, argv) => {
             from: './test-notification.html',
             to: 'test-notification.html',
             noErrorOnMissing: true
-          },
-          {
-            from: './.nojekyll',
-            to: '.nojekyll',
-            noErrorOnMissing: true
           }
         ]
-      })
+      }),
+
+      // ✅ ADD: Custom plugin to create .nojekyll
+      ...(isGitHubPages ? [new CreateNoJekyllPlugin()] : [])
     ],
     
     devServer: {
