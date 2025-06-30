@@ -5,12 +5,16 @@
   "main": "src/scripts/app.js",
   "scripts": {
     "start": "webpack serve --mode development",
-    "dev": "webpack serve --mode development --open",
+    "dev": "npm start",
+    "dev:debug": "webpack serve --mode development --stats=verbose",
     "build": "webpack --mode production",
     "build:dev": "webpack --mode development",
-    "preview": "npm run build && npx serve dist",
+    "preview": "npm run build && npx serve dist -l 3001",
     "clean": "rm -rf dist",
-    "test": "echo \"No tests specified\" && exit 0"
+    "test": "echo \"No tests specified\" && exit 0",
+    "create-icons": "node create-icons-proper.js",
+    "convert-icons": "npm install sharp && node convert-with-sharp.js",
+    "icons": "npm run create-icons && npm run convert-icons"
   },
   "dependencies": {
     "idb": "^7.1.1",
@@ -32,5 +36,6 @@
   "homepage": "https://USERNAME.github.io/REPOSITORY/",
   "keywords": ["story", "maps", "pwa", "leaflet"],
   "author": "Your Name",
+ 
   "license": "MIT"
 }

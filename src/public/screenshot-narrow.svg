@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 1334" width="750" height="1334">
+  <rect width="750" height="1334" fill="#0a0a0f"/>
+  <rect x="20" y="20" width="710" height="1294" rx="40" fill="#1a1a2e" stroke="#00d4ff" stroke-width="2"/>
+  <text x="375" y="667" font-family="Arial, sans-serif" font-size="36" fill="#00d4ff" text-anchor="middle">StoryMaps</text>
+  <text x="375" y="720" font-family="Arial, sans-serif" font-size="18" fill="#ffffff" text-anchor="middle">Share your stories with location</text>
+</svg>

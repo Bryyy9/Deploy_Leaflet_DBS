@@ -1,4 +1,4 @@
-// Add Story View - Fixed
+// src/scripts/views/add-story.js - FIXED MAP CLEANUP
 import { ApiService } from '../data/api.js';
 import { Camera } from '../utils/camera.js';
 import { Alert } from '../utils/alert.js';
@@ -10,6 +10,7 @@ export class AddStoryView {
     this.selectedLocation = null;
     this.photoBlob = null;
     this.map = null;
+    this.isDestroyed = false;
   }
 
   async render() {
@@ -72,6 +73,8 @@ export class AddStoryView {
   }
 
   async afterRender() {
+    if (this.isDestroyed) return;
+    
     try {
       console.log('🎯 Initializing Add Story View...');
       
@@ -83,11 +86,15 @@ export class AddStoryView {
       
     } catch (error) {
       console.error('❌ Error initializing add story view:', error);
-      Alert.error('Failed to initialize form: ' + error.message);
+      if (!this.isDestroyed) {
+        Alert.error('Failed to initialize form: ' + error.message);
+      }
     }
   }
 
   initPhotoControls() {
+    if (this.isDestroyed) return;
+    
     const photoInput = document.getElementById('photoInput');
     const chooseFileBtn = document.getElementById('chooseFileBtn');
     const cameraBtn = document.getElementById('cameraBtn');
@@ -159,6 +166,8 @@ export class AddStoryView {
   }
 
   showPhotoPreview(file) {
+    if (this.isDestroyed) return;
+    
     const photoPreview = document.getElementById('photoPreview');
     
     if (!photoPreview) return;
@@ -189,7 +198,10 @@ export class AddStoryView {
     }
   }
 
+  // ✅ COMPLETELY FIXED: Map initialization with proper cleanup
   initMap() {
+    if (this.isDestroyed) return;
+    
     const mapEl = document.getElementById('locationMap');
     
     if (!window.L || !mapEl) {
@@ -198,10 +210,36 @@ export class AddStoryView {
     }
 
     try {
-      this.map = L.map(mapEl).setView([-6.2, 106.816666], 10);
+      console.log('🗺️ Initializing add story map...');
       
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+      // ✅ Clean up existing map first
+      if (this.map) {
+        console.log('🧹 Cleaning up existing add story map...');
+        try {
+          this.map.remove();
+          console.log('✅ Add story map removed successfully');
+        } catch (cleanupError) {
+          console.warn('⚠️ Add story map cleanup warning:', cleanupError.message);
+        } finally {
+          this.map = null;
+        }
+      }
+
+      // ✅ Clear and reset map container
+      mapEl.innerHTML = '';
+      mapEl._leaflet_id = null; // Clear Leaflet's internal ID
+      
+      // ✅ Create new map
+      this.map = window.L.map(mapEl, {
+        center: [-6.2, 106.816666],
+        zoom: 10,
+        zoomControl: true,
+        attributionControl: true
+      });
+      
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 18
       }).addTo(this.map);
 
       let marker = null;
@@ -212,7 +250,7 @@ export class AddStoryView {
           this.map.removeLayer(marker);
         }
         
-        marker = L.marker(e.latlng).addTo(this.map);
+        marker = window.L.marker(e.latlng).addTo(this.map);
         this.selectedLocation = e.latlng;
         
         if (locationInfo) {
@@ -228,16 +266,22 @@ export class AddStoryView {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((position) => {
           const { latitude, longitude } = position.coords;
-          this.map.setView([latitude, longitude], 13);
+          if (this.map && !this.isDestroyed) {
+            this.map.setView([latitude, longitude], 13);
+          }
         });
       }
       
+      console.log('✅ Add story map initialized successfully');
+      
     } catch (error) {
-      console.error('Map initialization error:', error);
+      console.error('❌ Add story map initialization error:', error);
     }
   }
 
   initForm() {
+    if (this.isDestroyed) return;
+    
     const form = document.getElementById('storyForm');
     const submitBtn = document.getElementById('submitBtn');
     
@@ -248,6 +292,8 @@ export class AddStoryView {
     
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      
+      if (this.isDestroyed) return;
       
       const description = document.getElementById('description')?.value?.trim();
       
@@ -301,13 +347,19 @@ export class AddStoryView {
         
       } finally {
         // Re-enable submit button
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-plus"></i> Share Story';
+        if (!this.isDestroyed) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fas fa-plus"></i> Share Story';
+        }
       }
     });
   }
+
+  // ✅ FIXED: Complete cleanup method
   cleanup() {
     console.log('🧹 Cleaning up Add Story View...');
+    
+    this.isDestroyed = true;
     
     try {
       // Stop camera
@@ -318,10 +370,17 @@ export class AddStoryView {
       // Clear photo blob
       this.photoBlob = null;
       
-      // Remove map
+      // ✅ FIXED: Remove map properly
       if (this.map) {
-        this.map.remove();
-        this.map = null;
+        try {
+          console.log('🗺️ Removing add story map instance...');
+          this.map.remove();
+          console.log('✅ Add story map cleaned up successfully');
+        } catch (error) {
+          console.warn('⚠️ Add story map cleanup warning:', error.message);
+        } finally {
+          this.map = null;
+        }
       }
       
       // Clear selected location
@@ -341,5 +400,4 @@ export class AddStoryView {
   }
 }
 
-// Export default
 export default AddStoryView;

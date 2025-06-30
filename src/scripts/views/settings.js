@@ -1,8 +1,10 @@
-// src/scripts/views/settings.js - FIXED VERSION
+// src/scripts/views/settings.js - FIXED EVENT LISTENER VERSION
 export class SettingsView {
   constructor() {
     this.requiresAuth = true;
-    this.eventListeners = new Map(); // Track event listeners
+    this.eventListeners = new Map();
+    this.isDestroyed = false;
+    this.isProcessing = false; // ✅ Add processing flag
   }
 
   async render() {
@@ -128,6 +130,8 @@ export class SettingsView {
   }
 
   async afterRender() {
+    if (this.isDestroyed) return;
+    
     try {
       await this.loadNotificationStatus();
       await this.loadAppInfo();
@@ -138,77 +142,69 @@ export class SettingsView {
     }
   }
 
-  // ✅ FIXED: Simplified event listeners
   initEventListeners() {
+    if (this.isDestroyed) return;
+    
     console.log('🎮 Initializing event listeners...');
     
-    // Clear existing listeners
+    // ✅ FIXED: Clear existing listeners completely
     this.clearEventListeners();
     
-    // Test notification button
-    const testBtn = document.getElementById('testNotification');
-    if (testBtn) {
-      const testHandler = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.handleTestNotification();
-      };
-      testBtn.addEventListener('click', testHandler);
-      this.eventListeners.set('testNotification', { element: testBtn, handler: testHandler });
-    }
-    
-    // Clear cache button
-    const clearBtn = document.getElementById('clearCache');
-    if (clearBtn) {
-      const clearHandler = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.handleClearCache();
-      };
-      clearBtn.addEventListener('click', clearHandler);
-      this.eventListeners.set('clearCache', { element: clearBtn, handler: clearHandler });
-    }
+    // Add event listeners
+    this.addEventListenerSafe('testNotification', 'click', this.handleTestNotification.bind(this));
+    this.addEventListenerSafe('clearCache', 'click', this.handleClearCache.bind(this));
     
     console.log('✅ Event listeners initialized');
   }
 
-  // ✅ FIXED: Attach notification toggle listener after button is created
-  attachNotificationToggleListener() {
-    const toggleBtn = document.getElementById('notificationToggle');
+  // ✅ FIXED: Better event listener management
+  addEventListenerSafe(elementId, event, handler) {
+    if (this.isDestroyed) return;
     
-    if (toggleBtn && !this.eventListeners.has('notificationToggle')) {
-      console.log('🔔 Attaching notification toggle listener...');
+    const element = document.getElementById(elementId);
+    if (element) {
+      // ✅ Remove any existing listener first
+      this.removeEventListenerSafe(elementId);
       
-      const toggleHandler = async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('🔔 Notification toggle clicked!');
-        await this.handleNotificationToggle();
-      };
+      // Add new listener
+      element.addEventListener(event, handler);
+      this.eventListeners.set(elementId, { element, event, handler });
       
-      toggleBtn.addEventListener('click', toggleHandler);
-      this.eventListeners.set('notificationToggle', { 
-        element: toggleBtn, 
-        handler: toggleHandler 
-      });
-      
-      console.log('✅ Notification toggle listener attached');
+      console.log(`🎧 Added event listener: ${elementId} -> ${event}`);
+    } else {
+      console.warn(`⚠️ Element not found: ${elementId}`);
+    }
+  }
+
+  // ✅ FIXED: Remove specific event listener
+  removeEventListenerSafe(elementId) {
+    if (this.eventListeners.has(elementId)) {
+      const listener = this.eventListeners.get(elementId);
+      if (listener.element && listener.handler) {
+        listener.element.removeEventListener(listener.event, listener.handler);
+        console.log(`🗑️ Removed event listener: ${elementId}`);
+      }
+      this.eventListeners.delete(elementId);
     }
   }
 
   clearEventListeners() {
     this.eventListeners.forEach((listener, key) => {
       if (listener.element && listener.handler) {
-        listener.element.removeEventListener('click', listener.handler);
+        listener.element.removeEventListener(listener.event, listener.handler);
+        console.log(`🗑️ Cleared event listener: ${key}`);
       }
     });
     this.eventListeners.clear();
   }
 
   async loadNotificationStatus() {
+    if (this.isDestroyed) return;
+    
     console.log('🔔 Loading notification status...');
     
     const statusEl = document.getElementById('notificationStatus');
+    if (!statusEl) return;
 
     try {
       const { pushManager } = await import('../utils/push-manager.js');
@@ -248,7 +244,7 @@ export class SettingsView {
         if (testBtn) testBtn.disabled = false;
       }
       
-      // ✅ FIXED: Update status container with proper structure
+      // ✅ FIXED: Update HTML
       statusEl.className = `notification-status ${statusClass}`;
       statusEl.innerHTML = `
         <div class="status-info">
@@ -264,7 +260,8 @@ export class SettingsView {
           <div id="notificationToggleContainer">
             <button id="notificationToggle" 
                     class="btn ${buttonClass} btn-sm notification-toggle-btn"
-                    ${buttonDisabled ? 'disabled' : ''}>
+                    ${buttonDisabled ? 'disabled' : ''}
+                    data-enabled="${status.isSubscribed}">
               <i class="fas ${statusIcon}"></i>
               <span class="btn-text">${buttonText}</span>
             </button>
@@ -272,10 +269,12 @@ export class SettingsView {
         </div>
       `;
       
-      // ✅ FIXED: Attach listener after button is created
-      setTimeout(() => {
-        this.attachNotificationToggleListener();
-      }, 100);
+      // ✅ FIXED: Add notification toggle listener
+      if (!this.isDestroyed) {
+        setTimeout(() => {
+          this.addNotificationToggleListener();
+        }, 100);
+      }
       
       console.log('✅ Notification status updated');
       
@@ -291,41 +290,69 @@ export class SettingsView {
             <p>Failed to load notification status</p>
           </div>
         </div>
-        <div class="status-actions">
-          <div id="notificationToggleContainer">
-            <button id="notificationToggle" class="btn btn-secondary btn-sm" disabled>
-              <i class="fas fa-exclamation-triangle"></i>
-              <span class="btn-text">Error</span>
-            </button>
-          </div>
-        </div>
       `;
     }
   }
 
+  // ✅ FIXED: Notification toggle listener
+  addNotificationToggleListener() {
+    if (this.isDestroyed) return;
+    
+    console.log('🔔 Adding notification toggle listener...');
+    
+    // ✅ Remove existing listener first
+    this.removeEventListenerSafe('notificationToggle');
+    
+    const toggleBtn = document.getElementById('notificationToggle');
+    
+    if (toggleBtn) {
+      const handler = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // ✅ FIXED: Prevent multiple clicks during processing
+        if (this.isProcessing || toggleBtn.disabled) {
+          console.log('⚠️ Already processing or button disabled');
+          return;
+        }
+        
+        console.log('🔔 Notification toggle clicked!');
+        await this.handleNotificationToggle();
+      };
+      
+      toggleBtn.addEventListener('click', handler);
+      this.eventListeners.set('notificationToggle', { 
+        element: toggleBtn, 
+        event: 'click',
+        handler 
+      });
+      
+      console.log('✅ Notification toggle listener added');
+    }
+  }
+
   async handleNotificationToggle() {
+    if (this.isDestroyed || this.isProcessing) return;
+    
     console.log('🔔 handleNotificationToggle called');
+    
+    // ✅ FIXED: Set processing flag
+    this.isProcessing = true;
     
     const toggleBtn = document.getElementById('notificationToggle');
     
     if (!toggleBtn) {
-      console.error('❌ Toggle button not found');
-      return;
-    }
-    
-    if (toggleBtn.disabled) {
-      console.log('⚠️ Button is disabled, ignoring click');
+      this.isProcessing = false;
       return;
     }
     
     const originalHTML = toggleBtn.innerHTML;
+    const originalDisabled = toggleBtn.disabled;
     
     try {
-      console.log('🔄 Starting notification toggle...');
-      
-      // Show loading state
-      toggleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span class="btn-text">Please wait...</span>';
+      // ✅ Show loading state
       toggleBtn.disabled = true;
+      toggleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span class="btn-text">Please wait...</span>';
       
       const { pushManager } = await import('../utils/push-manager.js');
       const { Alert } = await import('../utils/alert.js');
@@ -336,18 +363,16 @@ export class SettingsView {
       console.log('📊 Current status before toggle:', status);
       
       if (status.isSubscribed) {
-        // Unsubscribe
         console.log('🗑️ Unsubscribing...');
         await pushManager.unsubscribe();
         Alert.success('Notifications disabled successfully');
       } else {
-        // Subscribe
         console.log('📝 Subscribing...');
         await pushManager.subscribe();
         Alert.success('Notifications enabled successfully');
       }
       
-      // Reload status
+      // ✅ FIXED: Reload status after successful toggle
       console.log('🔄 Reloading notification status...');
       await this.loadNotificationStatus();
       
@@ -365,25 +390,28 @@ export class SettingsView {
       
       Alert.error(errorMessage);
       
-      // Restore button
+      // ✅ Restore button state on error
       if (toggleBtn) {
         toggleBtn.innerHTML = originalHTML;
-        toggleBtn.disabled = false;
+        toggleBtn.disabled = originalDisabled;
       }
+    } finally {
+      // ✅ FIXED: Always reset processing flag
+      this.isProcessing = false;
     }
   }
 
   async handleTestNotification() {
-    console.log('🧪 handleTestNotification called');
+    if (this.isDestroyed) return;
     
     const testBtn = document.getElementById('testNotification');
-    const originalText = testBtn ? testBtn.innerHTML : '';
+    if (!testBtn || testBtn.disabled) return;
+    
+    const originalText = testBtn.innerHTML;
     
     try {
-      if (testBtn) {
-        testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-        testBtn.disabled = true;
-      }
+      testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+      testBtn.disabled = true;
       
       const { pushManager } = await import('../utils/push-manager.js');
       const { Alert } = await import('../utils/alert.js');
@@ -397,7 +425,7 @@ export class SettingsView {
       const { Alert } = await import('../utils/alert.js');
       Alert.error('Failed to send test notification: ' + error.message);
     } finally {
-      if (testBtn) {
+      if (testBtn && !this.isDestroyed) {
         testBtn.innerHTML = originalText;
         testBtn.disabled = false;
       }
@@ -405,11 +433,13 @@ export class SettingsView {
   }
 
   async handleClearCache() {
+    if (this.isDestroyed) return;
+    
     try {
       const { Alert } = await import('../utils/alert.js');
       
       const result = await Alert.confirm(
-        'This will clear all cached data. You may need to reload the app. Continue?',
+        'This will clear all cached data. Continue?',
         'Clear Cache'
       );
       
@@ -434,87 +464,102 @@ export class SettingsView {
   }
 
   async loadAppInfo() {
-    // Service Worker Status
+    if (this.isDestroyed) return;
+    
     const swStatusEl = document.getElementById('swStatus');
     const pushSupportEl = document.getElementById('pushSupport');
     
     try {
       if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready;
-        swStatusEl.innerHTML = `
-          <span class="status-badge enabled">
-            <i class="fas fa-check"></i> Active
-          </span>
-        `;
+        await navigator.serviceWorker.ready;
+        if (swStatusEl) {
+          swStatusEl.innerHTML = `
+            <span class="status-badge enabled">
+              <i class="fas fa-check"></i> Active
+            </span>
+          `;
+        }
       } else {
+        if (swStatusEl) {
+          swStatusEl.innerHTML = `
+            <span class="status-badge disabled">
+              <i class="fas fa-times"></i> Not Available
+            </span>
+          `;
+        }
+      }
+    } catch (error) {
+      if (swStatusEl) {
         swStatusEl.innerHTML = `
           <span class="status-badge disabled">
-            <i class="fas fa-times"></i> Not Available
+            <i class="fas fa-times"></i> Error
+          </span>
+        `;
+      }
+    }
+    
+    try {
+      const { pushManager } = await import('../utils/push-manager.js');
+      const pushSupported = pushManager.isSupported;
+      if (pushSupportEl) {
+        pushSupportEl.innerHTML = pushSupported ? `
+          <span class="status-badge enabled">
+            <i class="fas fa-check"></i> Supported
+          </span>
+        ` : `
+          <span class="status-badge disabled">
+            <i class="fas fa-times"></i> Not Supported
           </span>
         `;
       }
     } catch (error) {
-      swStatusEl.innerHTML = `
-        <span class="status-badge disabled">
-          <i class="fas fa-times"></i> Error
-        </span>
-      `;
-    }
-    
-    // Push Support
-    try {
-      const { pushManager } = await import('../utils/push-manager.js');
-      const pushSupported = pushManager.isSupported;
-      pushSupportEl.innerHTML = pushSupported ? `
-        <span class="status-badge enabled">
-          <i class="fas fa-check"></i> Supported
-        </span>
-      ` : `
-        <span class="status-badge disabled">
-          <i class="fas fa-times"></i> Not Supported
-        </span>
-      `;
-    } catch (error) {
-      pushSupportEl.innerHTML = `
-        <span class="status-badge disabled">
-          <i class="fas fa-times"></i> Error
-        </span>
-      `;
+      if (pushSupportEl) {
+        pushSupportEl.innerHTML = `
+          <span class="status-badge disabled">
+            <i class="fas fa-times"></i> Error
+          </span>
+        `;
+      }
     }
   }
 
   async loadStorageInfo() {
+    if (this.isDestroyed) return;
+    
     const cachedStoriesEl = document.getElementById('cachedStories');
     const favoriteStoriesEl = document.getElementById('favoriteStories');
     
     try {
-      // Load cached stories count
       if ('caches' in window) {
         const cacheNames = await caches.keys();
-        cachedStoriesEl.textContent = `${cacheNames.length} cache(s)`;
-      } else {
-        cachedStoriesEl.textContent = 'Not available';
+        if (cachedStoriesEl) {
+          cachedStoriesEl.textContent = `${cacheNames.length} cache(s)`;
+        }
       }
       
-      // Load favorites count
       try {
         const { storage } = await import('../data/storage.js');
         await storage.init();
         const favorites = await storage.getFavorites();
-        favoriteStoriesEl.textContent = `${favorites.length} stories`;
+        if (favoriteStoriesEl) {
+          favoriteStoriesEl.textContent = `${favorites.length} stories`;
+        }
       } catch (error) {
-        favoriteStoriesEl.textContent = 'Error loading';
+        if (favoriteStoriesEl) {
+          favoriteStoriesEl.textContent = 'Error loading';
+        }
       }
       
     } catch (error) {
-      cachedStoriesEl.textContent = 'Error loading';
-      favoriteStoriesEl.textContent = 'Error loading';
+      if (cachedStoriesEl) cachedStoriesEl.textContent = 'Error loading';
+      if (favoriteStoriesEl) favoriteStoriesEl.textContent = 'Error loading';
     }
   }
 
-  // ✅ FIXED: Cleanup method
   cleanup() {
     console.log('🧹 Cleaning up SettingsView...');
+    this.isDestroyed = true;
+    this.isProcessing = false;
     this.clearEventListeners();
   }
 }

@@ -1,3 +1,4 @@
+// src/scripts/views/detail.js - FIXED MAP INITIALIZATION
 import { ApiService } from '../data/api.js';
 import { storage } from '../data/storage.js';
 import { Alert } from '../utils/alert.js';
@@ -6,7 +7,8 @@ export class DetailView {
   constructor() {
     this.requiresAuth = true;
     this.story = null;
-    this.map = null;
+    this.map = null; // ✅ Track map instance
+    this.isDestroyed = false; // ✅ Track view state
   }
 
   async render(route) {
@@ -40,6 +42,8 @@ export class DetailView {
   }
 
   async afterRender() {
+    if (this.isDestroyed) return;
+    
     const route = window.location.hash.slice(1);
     const storyId = route.split('/')[2];
     
@@ -49,27 +53,35 @@ export class DetailView {
   }
 
   async loadStory(storyId) {
+    if (this.isDestroyed) return;
+    
     try {
       await storage.init();
       
       const response = await ApiService.getStoryDetail(storyId);
       this.story = response.story;
       
-      await this.renderStory();
-      this.showStory();
+      if (!this.isDestroyed) {
+        await this.renderStory();
+        this.showStory();
+      }
       
     } catch (error) {
       console.error('Error loading story:', error);
-      this.showError();
+      if (!this.isDestroyed) {
+        this.showError();
+      }
     }
   }
 
   async renderStory() {
-    if (!this.story) return;
+    if (!this.story || this.isDestroyed) return;
     
     const isFavorite = await storage.isFavorite(this.story.id);
     
     const storyContainer = document.getElementById('storyContainer');
+    if (!storyContainer) return;
+    
     storyContainer.innerHTML = `
       <div class="story-header">
         <button class="back-btn" onclick="history.back()">
@@ -103,15 +115,23 @@ export class DetailView {
 
     // Initialize favorite button
     const favoriteBtn = document.getElementById('favoriteBtn');
-    favoriteBtn.addEventListener('click', () => this.toggleFavorite());
+    if (favoriteBtn) {
+      favoriteBtn.addEventListener('click', () => this.toggleFavorite());
+    }
 
     // Initialize map if location exists
-    if (this.story.lat && this.story.lon && window.L) {
-      this.initMap();
+    if (this.story.lat && this.story.lon && window.L && !this.isDestroyed) {
+      setTimeout(() => {
+        if (!this.isDestroyed) {
+          this.initMap();
+        }
+      }, 100);
     }
   }
 
   async toggleFavorite() {
+    if (this.isDestroyed) return;
+    
     const favoriteBtn = document.getElementById('favoriteBtn');
     
     try {
@@ -131,30 +151,84 @@ export class DetailView {
     }
   }
 
+  // ✅ FIXED: Map initialization with proper cleanup
   initMap() {
+    if (this.isDestroyed || !this.story || !this.story.lat || !this.story.lon) return;
+    
     const mapEl = document.getElementById('storyMap');
     if (!mapEl || !window.L) return;
 
-    this.map = L.map(mapEl).setView([this.story.lat, this.story.lon], 15);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(this.map);
+    try {
+      console.log('🗺️ Initializing detail map...');
+      
+      // ✅ Clean up existing map first
+      if (this.map) {
+        console.log('🧹 Cleaning up existing detail map...');
+        try {
+          this.map.remove();
+          this.map = null;
+        } catch (cleanupError) {
+          console.warn('⚠️ Detail map cleanup warning:', cleanupError.message);
+          this.map = null;
+        }
+      }
 
-    L.marker([this.story.lat, this.story.lon])
-      .addTo(this.map)
-      .bindPopup(this.story.name)
-      .openPopup();
+      // ✅ Clear map container
+      mapEl.innerHTML = '';
+      
+      // ✅ Create new map
+      this.map = window.L.map(mapEl, {
+        zoomControl: true,
+        attributionControl: true
+      }).setView([this.story.lat, this.story.lon], 15);
+      
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 18
+      }).addTo(this.map);
+
+      const marker = window.L.marker([this.story.lat, this.story.lon]).addTo(this.map);
+      marker.bindPopup(this.story.name).openPopup();
+      
+      console.log('✅ Detail map initialized successfully');
+      
+    } catch (error) {
+      console.error('❌ Detail map initialization error:', error);
+    }
   }
 
   showStory() {
-    document.getElementById('loadingContainer').classList.add('hidden');
-    document.getElementById('storyContainer').classList.remove('hidden');
+    if (this.isDestroyed) return;
+    document.getElementById('loadingContainer')?.classList.add('hidden');
+    document.getElementById('storyContainer')?.classList.remove('hidden');
   }
 
   showError() {
-    document.getElementById('loadingContainer').classList.add('hidden');
-    document.getElementById('errorContainer').classList.remove('hidden');
+    if (this.isDestroyed) return;
+    document.getElementById('loadingContainer')?.classList.add('hidden');
+    document.getElementById('errorContainer')?.classList.remove('hidden');
+  }
+
+  // ✅ FIXED: Proper cleanup method
+  cleanup() {
+    console.log('🧹 Cleaning up DetailView...');
+    
+    this.isDestroyed = true;
+    
+    // ✅ Clean up map
+    if (this.map) {
+      try {
+        console.log('🗺️ Removing detail map instance...');
+        this.map.remove();
+        this.map = null;
+        console.log('✅ Detail map cleaned up successfully');
+      } catch (error) {
+        console.warn('⚠️ Detail map cleanup warning:', error.message);
+        this.map = null;
+      }
+    }
+    
+    console.log('✅ DetailView cleaned up');
   }
 }
 

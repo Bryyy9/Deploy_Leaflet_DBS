@@ -248,9 +248,131 @@ export class AddStoryPresenter extends BasePresenter {
     window.location.hash = '#/login';
   }
 
-  cleanup() {
-    this.selectedLocation = null;
-    this.photoBlob = null;
-    this.safeViewCall('cleanup');
+// Add to the AddStoryPresenter class
+initMap() {
+  const mapEl = document.getElementById('locationMap');
+  
+  if (!window.L || !mapEl) {
+    console.warn('Leaflet not available or map container not found');
+    return;
   }
+
+  try {
+    console.log('🗺️ Initializing add story map...');
+    
+    // ✅ Clean up existing map first
+    if (this.map) {
+      console.log('🧹 Cleaning up existing add story map...');
+      try {
+        this.map.remove();
+        this.map = null;
+      } catch (cleanupError) {
+        console.warn('⚠️ Add story map cleanup warning:', cleanupError.message);
+        this.map = null;
+      }
+    }
+
+    // ✅ Clear map container HTML to prevent conflicts
+    mapEl.innerHTML = '';
+    mapEl._leaflet_id = null; // Clear Leaflet ID
+    
+    // ✅ Create new map
+    this.map = window.L.map(mapEl, {
+      zoomControl: true,
+      attributionControl: true
+    }).setView([-6.2, 106.816666], 10);
+    
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(this.map);
+
+    let marker = null;
+    const locationInfo = document.getElementById('locationInfo');
+
+    this.map.on('click', (e) => {
+      if (marker) {
+        this.map.removeLayer(marker);
+      }
+      
+      marker = window.L.marker(e.latlng).addTo(this.map);
+      this.selectedLocation = e.latlng;
+      
+      if (locationInfo) {
+        locationInfo.innerHTML = `
+          <i class="fas fa-map-marker-alt" style="color: green;"></i>
+          Location selected: ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}
+        `;
+        locationInfo.style.color = 'green';
+      }
+    });
+
+    // Try to get current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        if (this.map && !this.isDestroyed) {
+          this.map.setView([latitude, longitude], 13);
+        }
+      });
+    }
+    
+    console.log('✅ Add story map initialized successfully');
+    
+  } catch (error) {
+    console.error('❌ Add story map initialization error:', error);
+  }
+}
+
+// ✅ Update cleanup method
+cleanup() {
+  console.log('🧹 Cleaning up Add Story View...');
+  
+  this.isDestroyed = true;
+  
+  try {
+    // Stop camera
+    if (this.camera) {
+      this.camera.stop();
+    }
+    
+    // Clear photo blob
+    this.photoBlob = null;
+    
+    // ✅ FIXED: Remove map properly
+    if (this.map) {
+      try {
+        console.log('🗺️ Removing add story map instance...');
+        this.map.remove();
+        this.map = null;
+        
+        // Clear the map container
+        const mapEl = document.getElementById('locationMap');
+        if (mapEl) {
+          mapEl.innerHTML = '';
+          mapEl._leaflet_id = null;
+        }
+        
+        console.log('✅ Add story map cleaned up successfully');
+      } catch (error) {
+        console.warn('⚠️ Add story map cleanup warning:', error.message);
+        this.map = null;
+      }
+    }
+    
+    // Clear selected location
+    this.selectedLocation = null;
+    
+    // Hide camera container
+    const cameraContainer = document.getElementById('cameraContainer');
+    if (cameraContainer) {
+      cameraContainer.classList.add('hidden');
+    }
+    
+    console.log('✅ Add Story View cleaned up');
+    
+  } catch (error) {
+    console.error('❌ Error cleaning up Add Story View:', error);
+  }
+}
 }

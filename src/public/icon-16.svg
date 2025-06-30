@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <defs>
+    <linearGradient id="grad16" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow16">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect width="16" height="16" rx="2.4" fill="url(#grad16)" filter="url(#shadow16)"/>
+  <circle cx="8" cy="6.4" r="2.4" fill="white" opacity="0.9"/>
+  <path d="M 8 8.8 L 8 12" stroke="white" stroke-width="0.32" stroke-linecap="round"/>
+  <text x="8" y="14.4" font-family="Arial, sans-serif" font-size="1.28" fill="white" text-anchor="middle" font-weight="600">StoryMaps</text>
+</svg>

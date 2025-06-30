@@ -1,10 +1,15 @@
-// src/scripts/views/login.js
+// src/scripts/views/login.js - FIXED VERSION
 import { AuthPresenter } from '../presenters/auth-presenter.js';
 
 export class LoginView {
   constructor() {
-    this.presenter = null;
+    this._presenter = null; // ✅ Use private property
     this.isRegisterMode = false;
+  }
+
+  // ✅ Add getter for presenter
+  get presenter() {
+    return this._presenter;
   }
 
   async render(route) {
@@ -94,7 +99,6 @@ export class LoginView {
           ` : ''}
           
           <div class="form-group">
-            <!-- ✨ PERBAIKAN: Hapus disabled, tambahkan data attribute -->
             <button type="submit" class="btn btn-primary btn-block" id="submitBtn" data-can-submit="false">
               <span class="btn-content">
                 <i class="fas ${this.isRegisterMode ? 'fa-user-plus' : 'fa-sign-in-alt'}"></i>
@@ -168,20 +172,11 @@ export class LoginView {
   
   async afterRender() {
     try {
-      this.presenter = new AuthPresenter(this, this.isRegisterMode);
-      
-      // ✨ ENHANCED: Track presenter in view for router cleanup
-      if (this.presenter) {
-        // Make presenter accessible to router
-        Object.defineProperty(this, 'presenter', {
-          value: this.presenter,
-          writable: false,
-          enumerable: true
-        });
-      }
+      // ✅ FIXED: Use private property
+      this._presenter = new AuthPresenter(this, this.isRegisterMode);
       
       this.initEventListeners();
-      await this.presenter.init();
+      await this._presenter.init();
       
       console.log('✅ LoginView initialized successfully');
       
@@ -191,36 +186,12 @@ export class LoginView {
     }
   }
 
-  // ✨ ENHANCED: Proper cleanup method
-  cleanup() {
-    console.log('🧹 Cleaning up LoginView');
-    
-    // Destroy presenter first
-    if (this.presenter && typeof this.presenter.destroy === 'function') {
-      try {
-        this.presenter.destroy();
-      } catch (error) {
-        console.error('Error destroying presenter:', error);
-      }
-      this.presenter = null;
-    }
-    
-    // Clear any remaining event listeners
-    const form = document.getElementById('authForm');
-    if (form) {
-      form.removeEventListener('submit', this.formSubmitHandler);
-    }
-    
-    console.log('✅ LoginView cleaned up');
-  }
-
   initEventListeners() {
     const form = document.getElementById('authForm');
     const useDemoBtn = document.getElementById('useDemoBtn');
     const passwordToggle = document.getElementById('passwordToggle');
     const submitBtn = document.getElementById('submitBtn');
     
-    // ✨ PERBAIKAN: Form submit handler
     if (form) {
       form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -229,29 +200,27 @@ export class LoginView {
         const formData = this.getFormData();
         console.log('📋 Form data:', formData);
         
-        if (this.presenter) {
-          this.presenter.handleSubmit(formData);
+        if (this._presenter) {
+          this._presenter.handleSubmit(formData);
         } else {
           console.error('❌ Presenter not available');
         }
       });
     }
     
-    // ✨ PERBAIKAN: Button click handler sebagai backup
     if (submitBtn) {
       submitBtn.addEventListener('click', (e) => {
         console.log('🔘 Submit button clicked directly');
         
-        // Jika form submit tidak trigger, handle manual
         if (e.target.type === 'submit') {
-          return; // Biarkan form submit handle
+          return;
         }
         
         e.preventDefault();
         const formData = this.getFormData();
         
-        if (this.presenter) {
-          this.presenter.handleSubmit(formData);
+        if (this._presenter) {
+          this._presenter.handleSubmit(formData);
         }
       });
     }
@@ -259,8 +228,8 @@ export class LoginView {
     if (useDemoBtn) {
       useDemoBtn.addEventListener('click', () => {
         console.log('🎯 Demo button clicked');
-        if (this.presenter) {
-          this.presenter.fillDemoCredentials();
+        if (this._presenter) {
+          this._presenter.fillDemoCredentials();
         }
       });
     }
@@ -271,30 +240,26 @@ export class LoginView {
       });
     }
     
-    // ✨ PERBAIKAN: Real-time validation
     const fields = ['name', 'email', 'password', 'confirmPassword'];
     fields.forEach(fieldName => {
       const field = document.getElementById(fieldName);
       if (field) {
-        // Input event untuk real-time validation
         field.addEventListener('input', (e) => {
           console.log(`📝 Field ${fieldName} changed:`, e.target.value);
-          if (this.presenter) {
-            this.presenter.validateField(fieldName, e.target.value);
+          if (this._presenter) {
+            this._presenter.validateField(fieldName, e.target.value);
           }
         });
 
-        // Blur event untuk validation saat focus hilang
         field.addEventListener('blur', (e) => {
-          if (this.presenter) {
-            this.presenter.validateField(fieldName, e.target.value);
+          if (this._presenter) {
+            this._presenter.validateField(fieldName, e.target.value);
           }
         });
 
-        // ✨ PERBAIKAN: Keyup untuk responsive validation
         field.addEventListener('keyup', (e) => {
-          if (this.presenter) {
-            this.presenter.validateField(fieldName, e.target.value);
+          if (this._presenter) {
+            this._presenter.validateField(fieldName, e.target.value);
           }
         });
       }
@@ -358,20 +323,15 @@ export class LoginView {
     }
   }
 
-  // ✨ PERBAIKAN: Update submit button dengan logging
   updateSubmitButton(enabled) {
     const submitBtn = document.getElementById('submitBtn');
     
     console.log('🔘 Updating submit button:', { enabled, buttonExists: !!submitBtn });
     
     if (submitBtn) {
-      // Update disabled state
       submitBtn.disabled = !enabled;
-      
-      // Update data attribute
       submitBtn.setAttribute('data-can-submit', enabled.toString());
       
-      // Update visual state
       if (enabled) {
         submitBtn.classList.remove('btn-disabled');
         submitBtn.style.opacity = '1';
@@ -491,7 +451,6 @@ export class LoginView {
   initializeForm(isRegisterMode) {
     console.log('🎯 Initializing form:', { isRegisterMode });
     
-    // Focus first input
     const firstInput = document.querySelector('input');
     if (firstInput) {
       setTimeout(() => {
@@ -499,23 +458,29 @@ export class LoginView {
       }, 100);
     }
     
-    // ✨ PERBAIKAN: Force enable button initially untuk testing
     setTimeout(() => {
       const submitBtn = document.getElementById('submitBtn');
       if (submitBtn) {
         console.log('🔧 Initial button state setup');
-        this.updateSubmitButton(false); // Start disabled, akan di-enable oleh validation
+        this.updateSubmitButton(false);
       }
     }, 200);
   }
 
+  // ✅ FIXED: Safe cleanup method
   cleanup() {
     console.log('🧹 Cleaning up LoginView');
     
-    if (this.presenter) {
-      this.presenter.destroy();
-      this.presenter = null;
+    if (this._presenter && typeof this._presenter.destroy === 'function') {
+      try {
+        this._presenter.destroy();
+      } catch (error) {
+        console.error('Error destroying presenter:', error);
+      }
+      this._presenter = null;
     }
+    
+    console.log('✅ LoginView cleaned up');
   }
 }
 

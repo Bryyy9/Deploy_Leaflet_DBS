@@ -1,4 +1,4 @@
-// src/scripts/views/home.js - Complete Enhanced Version
+// src/scripts/views/home.js - FIXED MAP ERROR
 import { HomePresenter } from '../presenters/home-presenter.js';
 import { Alert } from '../utils/alert.js';
 
@@ -6,6 +6,7 @@ export class HomeView {
   constructor() {
     this.requiresAuth = false;
     this.presenter = null;
+    this.map = null; // ✅ Add map property
   }
 
   async render() {
@@ -85,6 +86,7 @@ export class HomeView {
           <!-- Map Container -->
           <div class="map-container" id="mapContainer">
             <div id="mapElement" style="height: 400px; width: 100%;"></div>
+            <!-- ✅ FIXED: Ensure mapError element exists -->
             <div id="mapError" class="map-error hidden">
               <div class="text-center" style="padding: 2rem;">
                 <i class="fas fa-map" style="font-size: 2rem; color: #6c757d; margin-bottom: 1rem;"></i>
@@ -222,12 +224,18 @@ export class HomeView {
 
   showLoading() {
     this.hideAllContainers();
-    document.getElementById('loadingContainer')?.classList.remove('hidden');
+    const loadingContainer = document.getElementById('loadingContainer');
+    if (loadingContainer) {
+      loadingContainer.classList.remove('hidden');
+    }
   }
 
   showLoginRequired() {
     this.hideAllContainers();
-    document.getElementById('loginRequiredContainer')?.classList.remove('hidden');
+    const loginContainer = document.getElementById('loginRequiredContainer');
+    if (loginContainer) {
+      loginContainer.classList.remove('hidden');
+    }
   }
 
   showError(message) {
@@ -251,7 +259,10 @@ export class HomeView {
 
   displayStories(stories, favorites = []) {
     this.hideAllContainers();
-    document.getElementById('mainContent')?.classList.remove('hidden');
+    const mainContent = document.getElementById('mainContent');
+    if (mainContent) {
+      mainContent.classList.remove('hidden');
+    }
     
     const gridEl = document.getElementById('storiesGrid');
     const countEl = document.getElementById('storiesCount');
@@ -347,55 +358,87 @@ export class HomeView {
     }
   }
 
+  // ✅ FIXED: Better map initialization with error handling
   initializeMap(stories) {
     const mapElement = document.getElementById('mapElement');
     const mapError = document.getElementById('mapError');
     
-    if (!window.L || !mapElement) {
-      if (mapError) mapError.classList.remove('hidden');
+    // ✅ Check if elements exist
+    if (!mapElement) {
+      console.warn('⚠️ Map element not found');
+      return;
+    }
+    
+    if (!window.L) {
+      console.warn('⚠️ Leaflet not available');
+      this.showMapError();
       return;
     }
 
     try {
+      // ✅ Clean up existing map
       if (this.map) {
         this.map.remove();
+        this.map = null;
       }
 
+      // ✅ Hide map error initially
+      if (mapError) {
+        mapError.classList.add('hidden');
+      }
+
+      // ✅ Create new map
       this.map = window.L.map(mapElement).setView([-2.5489, 118.0149], 5);
       
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(this.map);
 
+      // ✅ Add markers for stories with location
+      let markersAdded = 0;
       stories.forEach(story => {
         if (story.lat && story.lon) {
-          const marker = window.L.marker([story.lat, story.lon]).addTo(this.map);
-          marker.bindPopup(`
-            <div style="text-align: center; min-width: 200px;">
-              <img src="${story.photoUrl}" alt="${story.name}" 
-                   style="width: 150px; height: 100px; object-fit: cover; border-radius: 5px; margin-bottom: 10px;"
-                   onerror="this.style.display='none'">
-              <h4 style="margin: 5px 0;">${story.name}</h4>
-              <p style="margin: 5px 0; font-size: 0.9rem;">${story.description.substring(0, 80)}...</p>
-              <a href="#/detail/${story.id}" class="btn btn-primary btn-sm" style="margin-top: 5px;">
-                <i class="fas fa-eye"></i> View Details
-              </a>
-            </div>
-          `);
+          try {
+            const marker = window.L.marker([story.lat, story.lon]).addTo(this.map);
+            marker.bindPopup(`
+              <div style="text-align: center; min-width: 200px;">
+                <img src="${story.photoUrl}" alt="${story.name}" 
+                     style="width: 150px; height: 100px; object-fit: cover; border-radius: 5px; margin-bottom: 10px;"
+                     onerror="this.style.display='none'">
+                <h4 style="margin: 5px 0;">${story.name}</h4>
+                <p style="margin: 5px 0; font-size: 0.9rem;">${story.description.substring(0, 80)}...</p>
+                <a href="#/detail/${story.id}" class="btn btn-primary btn-sm" style="margin-top: 5px;">
+                  <i class="fas fa-eye"></i> View Details
+                </a>
+              </div>
+            `);
+            markersAdded++;
+          } catch (markerError) {
+            console.warn('⚠️ Failed to add marker for story:', story.id, markerError);
+          }
         }
       });
       
-      console.log(`✅ Map initialized with ${stories.length} markers`);
+      console.log(`✅ Map initialized with ${markersAdded} markers`);
       
     } catch (error) {
-      console.error('Map initialization error:', error);
-      if (mapError) mapError.classList.remove('hidden');
+      console.error('❌ Map initialization error:', error);
+      this.showMapError();
     }
   }
 
+  // ✅ FIXED: Show map error safely
   showMapError() {
     const mapError = document.getElementById('mapError');
-    if (mapError) mapError.classList.remove('hidden');
+    const mapElement = document.getElementById('mapElement');
+    
+    if (mapError) {
+      mapError.classList.remove('hidden');
+    }
+    
+    if (mapElement) {
+      mapElement.style.display = 'none';
+    }
   }
 
   showRefreshLoading() {
@@ -442,19 +485,37 @@ export class HomeView {
     ];
     
     containers.forEach(id => {
-      document.getElementById(id)?.classList.add('hidden');
+      const element = document.getElementById(id);
+      if (element) {
+        element.classList.add('hidden');
+      }
     });
   }
 
+  // ✅ FIXED: Cleanup method
   cleanup() {
+    console.log('🧹 Cleaning up HomeView...');
+    
+    // ✅ Clean up map
     if (this.map) {
-      this.map.remove();
-      this.map = null;
+      try {
+        this.map.remove();
+        this.map = null;
+        console.log('✅ Map cleaned up');
+      } catch (error) {
+        console.warn('⚠️ Error cleaning up map:', error);
+      }
     }
     
+    // ✅ Clean up presenter
     if (this.presenter) {
-      this.presenter.destroy();
-      this.presenter = null;
+      try {
+        this.presenter.destroy();
+        this.presenter = null;
+        console.log('✅ Presenter cleaned up');
+      } catch (error) {
+        console.warn('⚠️ Error cleaning up presenter:', error);
+      }
     }
   }
 }

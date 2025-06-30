@@ -1,4 +1,4 @@
-// src/scripts/router.js 
+// src/scripts/router.js - ENHANCED VIEW CLEANUP
 export class Router {
   constructor() {
     this.routes = {
@@ -14,22 +14,45 @@ export class Router {
     };
     
     this.currentView = null;
-    this.currentPresenter = null; // ✨ ENHANCED: Track current presenter
+    this.currentPresenter = null;
     this.isNavigating = false;
-    this.cleanupTimeout = null; // ✨ ENHANCED: Cleanup timeout
+    this.cleanupTimeout = null;
+    this.isInitialized = false;
   }
 
   init() {
+    if (this.isInitialized) {
+      console.warn('⚠️ Router already initialized, skipping...');
+      return;
+    }
+    
     console.log('🚦 Router initialized with enhanced lifecycle management');
     
-    this.handleRoute();
-    window.addEventListener('hashchange', () => this.handleRoute());
-    window.addEventListener('popstate', () => this.handleRoute());
+    this.isInitialized = true;
     
-    // ✨ ENHANCED: Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-      this.cleanup();
-    });
+    this.removeEventListeners();
+    
+    this.hashChangeHandler = () => this.handleRoute();
+    this.popStateHandler = () => this.handleRoute();
+    this.beforeUnloadHandler = () => this.cleanup();
+    
+    window.addEventListener('hashchange', this.hashChangeHandler);
+    window.addEventListener('popstate', this.popStateHandler);
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
+    
+    this.handleRoute();
+  }
+
+  removeEventListeners() {
+    if (this.hashChangeHandler) {
+      window.removeEventListener('hashchange', this.hashChangeHandler);
+    }
+    if (this.popStateHandler) {
+      window.removeEventListener('popstate', this.popStateHandler);
+    }
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+    }
   }
 
   async handleRoute() {
@@ -44,7 +67,6 @@ export class Router {
       const hash = window.location.hash.slice(1) || '/';
       console.log('🚦 Routing to:', hash);
       
-      // ✨ ENHANCED: Proper cleanup of previous view and presenter
       await this.cleanupPrevious();
       
       if (hash === '/logout') {
@@ -72,44 +94,59 @@ export class Router {
     }
   }
 
-  // ✨ ENHANCED: Proper cleanup of previous view and presenter
-  async cleanupPrevious() {
-    console.log('🧹 Cleaning up previous view and presenter...');
-    
-    // Clear any pending cleanup timeout
-    if (this.cleanupTimeout) {
-      clearTimeout(this.cleanupTimeout);
-      this.cleanupTimeout = null;
-    }
-    
-    // Cleanup presenter first (if exists)
-    if (this.currentPresenter) {
-      try {
-        if (typeof this.currentPresenter.destroy === 'function') {
-          console.log('🗑️ Destroying current presenter...');
-          this.currentPresenter.destroy();
-        }
-      } catch (error) {
-        console.error('❌ Error destroying presenter:', error);
-      }
-      this.currentPresenter = null;
-    }
-    
-    // Then cleanup view
-    if (this.currentView) {
-      try {
-        if (typeof this.currentView.cleanup === 'function') {
-          console.log('🧹 Cleaning up current view...');
-          await this.currentView.cleanup();
-        }
-      } catch (error) {
-        console.error('❌ Error cleaning up view:', error);
-      }
-      this.currentView = null;
-    }
-    
-    console.log('✅ Previous view and presenter cleaned up');
+  // ✅ ENHANCED: Better cleanup with timeout and error handling
+async cleanupPrevious() {
+  console.log('🧹 Cleaning up previous view and presenter...');
+  
+  if (this.cleanupTimeout) {
+    clearTimeout(this.cleanupTimeout);
+    this.cleanupTimeout = null;
   }
+  
+  // ✅ Clean up presenter first
+  if (this.currentPresenter) {
+    try {
+      if (typeof this.currentPresenter.destroy === 'function') {
+        console.log('🗑️ Destroying current presenter...');
+        this.currentPresenter.destroy();
+      }
+    } catch (error) {
+      console.error('❌ Error destroying presenter:', error);
+    }
+    this.currentPresenter = null;
+  }
+  
+  // ✅ Clean up view
+  if (this.currentView) {
+    try {
+      if (typeof this.currentView.cleanup === 'function') {
+        console.log('🧹 Cleaning up current view...');
+        await this.currentView.cleanup();
+      }
+    } catch (error) {
+      console.error('❌ Error cleaning up view:', error);
+    }
+    this.currentView = null;
+  }
+  
+  // ✅ Clean up any remaining Leaflet maps
+  try {
+    if (window.L) {
+      // Force cleanup any remaining map instances
+      const mapContainers = document.querySelectorAll('[id*="map"], [id*="Map"]');
+      mapContainers.forEach(container => {
+        if (container._leaflet_id) {
+          container.innerHTML = '';
+          delete container._leaflet_id;
+        }
+      });
+    }
+  } catch (error) {
+    console.warn('⚠️ Error in map cleanup:', error);
+  }
+  
+  console.log('✅ Previous view and presenter cleaned up');
+}
 
   parseRoute(hash) {
     const parts = hash.split('/').filter(part => part.length > 0);
@@ -151,15 +188,7 @@ export class Router {
     }
 
     try {
-      if (!document.startViewTransition) {
-        await this.renderView(routeLoader, fullRoute, params);
-        return;
-      }
-
-      await document.startViewTransition(async () => {
-        await this.renderView(routeLoader, fullRoute, params);
-      });
-
+      await this.renderView(routeLoader, fullRoute, params);
     } catch (error) {
       console.error('❌ Error loading view with transition:', error);
       this.showError('Failed to load page: ' + error.message);
@@ -195,16 +224,14 @@ export class Router {
       }
       
       contentEl.innerHTML = html;
-      contentEl.style.viewTransitionName = `page-${this.getRouteTransitionName(fullRoute)}`;
       
-      // ✨ ENHANCED: Set current view before afterRender
       this.currentView = view;
       
       if (view.afterRender && typeof view.afterRender === 'function') {
         await view.afterRender(params);
       }
       
-      // ✨ ENHANCED: Track presenter if view has one
+      // ✅ FIXED: Check for presenter property safely
       if (view.presenter) {
         this.currentPresenter = view.presenter;
         console.log('📋 Presenter tracked:', view.presenter.constructor.name);
@@ -225,9 +252,8 @@ export class Router {
   show404(route) {
     const contentEl = document.getElementById('content');
     if (contentEl) {
-      contentEl.style.viewTransitionName = 'page-404';
       contentEl.innerHTML = `
-        <div class="error-page" style="view-transition-name: error-content;">
+        <div class="error-page">
           <div class="error-content">
             <div class="error-icon">
               <i class="fas fa-map-signs"></i>
@@ -266,9 +292,8 @@ export class Router {
   showLoadingWithTransition() {
     const contentEl = document.getElementById('content');
     if (contentEl) {
-      contentEl.style.viewTransitionName = 'page-loading';
       contentEl.innerHTML = `
-        <div class="loading-container" style="view-transition-name: loading-content;">
+        <div class="loading-container">
           <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin"></i>
             <p>Loading...</p>
@@ -278,28 +303,11 @@ export class Router {
     }
   }
 
-  getRouteTransitionName(route) {
-    const routeMap = {
-      '/': 'home',
-      '/home': 'home',
-      '/login': 'auth',
-      '/register': 'auth',
-      '/add': 'add-story',
-      '/favorites': 'favorites',
-      '/detail': 'detail',
-      '/settings': 'settings'
-    };
-    
-    const baseRoute = route.split('/').slice(0, 2).join('/') || '/';
-    return routeMap[baseRoute] || 'default';
-  }
-
   showError(message) {
     const contentEl = document.getElementById('content');
     if (contentEl) {
-      contentEl.style.viewTransitionName = 'page-error';
       contentEl.innerHTML = `
-        <div class="error-page" style="view-transition-name: error-content;">
+        <div class="error-page">
           <div class="error-content">
             <div class="error-icon">
               <i class="fas fa-exclamation-triangle"></i>
@@ -340,19 +348,16 @@ export class Router {
     try {
       console.log('🚦 Handling logout...');
       
-      // Cleanup current view/presenter before logout
-      this.cleanupPrevious();
-      
       // Clear auth data
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       
-      // ✅ FIXED: Dispatch auth change event
+      // Dispatch auth change event
       document.dispatchEvent(new CustomEvent('authChange', {
         detail: { isLoggedIn: false, user: null }
       }));
       
-      // Show logout message
+      // Show success message
       if (window.Swal) {
         window.Swal.fire({
           icon: 'success',
@@ -365,7 +370,7 @@ export class Router {
         });
       }
       
-      // ✅ FIXED: Redirect setelah logout
+      // Navigate to home
       setTimeout(() => {
         this.navigate('/');
       }, 1000);
@@ -392,10 +397,15 @@ export class Router {
     return window.location.hash.slice(1) || '/';
   }
 
-  // ✨ ENHANCED: Manual cleanup method
   cleanup() {
     console.log('🧹 Router cleanup...');
     this.cleanupPrevious();
+    this.removeEventListeners();
+    this.isInitialized = false;
+  }
+
+  destroy() {
+    this.cleanup();
   }
 }
 

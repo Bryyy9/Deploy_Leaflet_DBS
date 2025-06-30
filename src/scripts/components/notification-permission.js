@@ -1,4 +1,4 @@
-// src/scripts/components/notification-permission.js - Enhanced Error Handling
+// src/scripts/components/notification-permission.js - Enhanced with better error handling
 import { pushManager } from '../utils/push-manager.js';
 import { Alert } from '../utils/alert.js';
 
@@ -64,52 +64,39 @@ export class NotificationPermission {
     console.log('✅ Banner added to DOM');
 
     setTimeout(() => {
-      const enableBtn = this.container.querySelector('#enableNotifications');
-      const dismissBtn = this.container.querySelector('#dismissNotifications');
-
-      if (enableBtn) {
-        console.log('✅ Enable button found, adding event listener');
-        enableBtn.onclick = (e) => {
-          console.log('🔘 Enable button clicked!', e);
-          e.preventDefault();
-          e.stopPropagation();
-          this.handleEnable();
-        };
-        
-        enableBtn.addEventListener('click', (e) => {
-          console.log('🔘 Enable button clicked via addEventListener!', e);
-          e.preventDefault();
-          e.stopPropagation();
-          this.handleEnable();
-        });
-      } else {
-        console.error('❌ Enable button not found!');
-      }
-
-      if (dismissBtn) {
-        console.log('✅ Dismiss button found, adding event listener');
-        dismissBtn.onclick = (e) => {
-          console.log('🔘 Dismiss button clicked!', e);
-          e.preventDefault();
-          e.stopPropagation();
-          this.handleDismiss();
-        };
-        
-        dismissBtn.addEventListener('click', (e) => {
-          console.log('🔘 Dismiss button clicked via addEventListener!', e);
-          e.preventDefault();
-          e.stopPropagation();
-          this.handleDismiss();
-        });
-      } else {
-        console.error('❌ Dismiss button not found!');
-      }
-    }, 100);
-
-    setTimeout(() => {
+      this.attachEventListeners();
       this.container.classList.add('visible');
       console.log('✅ Banner animated in');
-    }, 200);
+    }, 100);
+  }
+
+  attachEventListeners() {
+    const enableBtn = this.container.querySelector('#enableNotifications');
+    const dismissBtn = this.container.querySelector('#dismissNotifications');
+
+    if (enableBtn) {
+      console.log('✅ Enable button found, adding event listener');
+      enableBtn.addEventListener('click', (e) => {
+        console.log('🔘 Enable button clicked!', e);
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleEnable();
+      });
+    } else {
+      console.error('❌ Enable button not found!');
+    }
+
+    if (dismissBtn) {
+      console.log('✅ Dismiss button found, adding event listener');
+      dismissBtn.addEventListener('click', (e) => {
+        console.log('🔘 Dismiss button clicked!', e);
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleDismiss();
+      });
+    } else {
+      console.error('❌ Dismiss button not found!');
+    }
   }
 
   async handleEnable() {
@@ -135,34 +122,44 @@ export class NotificationPermission {
 
       console.log('🔐 Requesting permission and subscribing...');
       
-      // ✨ ENHANCED: Try subscription with better error handling
-      let subscription = null;
-      let subscriptionError = null;
+      // ✅ ENHANCED: Better subscription handling
+      let subscriptionResult = null;
+      let hasBasicPermission = false;
       
       try {
-        subscription = await pushManager.subscribe();
-        console.log('✅ Successfully subscribed:', subscription);
-      } catch (error) {
-        console.warn('⚠️ Subscription failed, but we can still send direct notifications:', error);
-        subscriptionError = error;
+        // First, just try to get permission
+        await pushManager.requestPermission();
+        hasBasicPermission = Notification.permission === 'granted';
+        console.log('✅ Basic permission granted:', hasBasicPermission);
         
-        // Check if we at least have permission for direct notifications
-        if (Notification.permission !== 'granted') {
+        // Then try to subscribe
+        if (hasBasicPermission) {
+          subscriptionResult = await pushManager.subscribe();
+          console.log('✅ Subscription result:', !!subscriptionResult);
+        }
+        
+      } catch (error) {
+        console.warn('⚠️ Subscription failed, but checking basic permission:', error.message);
+        hasBasicPermission = Notification.permission === 'granted';
+        
+        if (!hasBasicPermission) {
           throw error; // Re-throw if we don't even have basic permission
         }
       }
       
-      // Show success message
-      if (subscription) {
+      // Show appropriate success message
+      if (subscriptionResult) {
         Alert.success(
           'Notifications enabled with full push support! You\'ll receive updates about new stories.',
           'Notifications Enabled'
         );
-      } else if (Notification.permission === 'granted') {
+      } else if (hasBasicPermission) {
         Alert.success(
           'Basic notifications enabled! You\'ll receive updates when using the app.',
           'Notifications Enabled'
         );
+      } else {
+        throw new Error('Failed to enable any type of notifications');
       }
 
       // Send test notification
@@ -172,7 +169,7 @@ export class NotificationPermission {
           await pushManager.sendTestNotification();
           console.log('✅ Test notification sent');
         } catch (testError) {
-          console.warn('⚠️ Test notification failed:', testError);
+          console.warn('⚠️ Test notification failed:', testError.message);
           // Don't show error for test notification failure
         }
       }, 2000);
@@ -189,7 +186,7 @@ export class NotificationPermission {
       } else if (error.message.includes('not supported')) {
         errorMessage += 'Your browser doesn\'t support push notifications.';
       } else if (error.message.includes('VAPID') || error.message.includes('ECDSA')) {
-        errorMessage += 'There was a configuration issue, but basic notifications may still work.';
+        errorMessage += 'Configuration issue detected, but basic notifications may still work.';
       } else {
         errorMessage += 'Please try again later.';
       }
@@ -279,7 +276,7 @@ export class NotificationPermission {
       } else {
         console.log('❌ Will not show banner');
       }
-    }, 3000);
+    }, 5000); // Increased delay to 5 seconds
   }
 
   forceShow() {
